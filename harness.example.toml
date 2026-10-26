@@ -1,0 +1,74 @@
+# Copy to harness.toml (gitignored) or point HARNESS_CONFIG at it. As copied, it runs
+# local-only (--no-cloud). Uncomment [github], the GitHub slots and [cloud] after
+# docs/SETUP.md steps 3-4.
+
+# runs/, work/, cache/, slots/, harness.duckdb. Agents see paths under here (their working
+# copy and HOME), so don't name it after the eval.
+state_dir = "~/.local/share/workspaces"
+default_pack = "dagger"
+retries = 2                                 # scripted simulated-user nudges after a failed verify
+
+# Budgets cover the task plus all retries. The feedback turn has its own small budget.
+[budget]
+wall_clock_s = 3600
+max_turns = 200
+max_cost_usd = 25.0
+
+[feedback_budget]
+wall_clock_s = 600
+max_turns = 10
+max_cost_usd = 2.0
+
+# Agent auth is switchable between subscription and API key.
+[agents.claude]
+auth = "subscription"                       # or "api_key"
+oauth_token_env = "CLAUDE_CODE_OAUTH_TOKEN" # from `claude setup-token`
+api_key_env = "ANTHROPIC_API_KEY"
+permission_mode = "bypassPermissions"
+model = "claude-sonnet-5-5"                 # pin it: runs are only comparable on the same model
+
+[agents.codex]
+auth = "subscription"                       # or "api_key"
+auth_json = "~/.codex/auth.json"            # copied into each run's fresh CODEX_HOME
+api_key_env = "OPENAI_API_KEY"
+sandbox = "full-access"
+# model = "..."
+
+# Slots: private generic repos in the test org. A slot without `repo` is local-only
+# (no pushes, no integration checks), which is handy before the org exists.
+[[slots]]
+name = "local-01"
+
+# [[slots]]
+# name = "slot-01"
+# repo = "my-sandbox/project-01"
+
+# [github]
+# org = "my-sandbox"
+# app_id = 123456
+# installation_id = 12345678
+# private_key_path = "~/.config/devtool-eval/app.private-key.pem"
+# bot_name = "Developer"
+# bot_email = "developer@users.noreply.github.com"
+
+[isolation]
+home_passthrough = [".docker", ".orbstack"] # symlinked into each run's fake HOME (.orbstack: macOS only)
+share_caches = true                         # uv/go/npm/pip caches shared across runs
+
+# Referee model is configurable: claude_sdk (subscription), anthropic, openai, codex_sdk.
+[referee]
+backend = "claude_sdk"
+# model = "claude-opus-5-5"
+
+# Ambient Dagger Cloud login for --cloud runs (a token scoped to the test Cloud org).
+# [cloud]
+# token_env = "DAGGER_CLOUD_TOKEN"
+# config_dir = "~/.config/devtool-eval/dagger-cloud"   # alternative: a logged-in dagger config dir
+# org = "my-sandbox"
+
+[packs.dagger]
+engine_reset = "prune"          # prune | restart | none. prune deletes the engine and its cache.
+release_env = "DAGGER_X_RELEASE" # release selector understood by the installed dagger binary
+verify_timeout_s = 3600
+cloud_wait_s = 1800             # how long to wait for Cloud Checks on a pushed SHA
+# official_prefixes = ["dagger.io/", "github.com/dagger/"]

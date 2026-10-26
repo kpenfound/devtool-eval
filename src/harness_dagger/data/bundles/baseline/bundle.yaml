@@ -1,0 +1,4 @@
+# The no-help baseline: no instructions, skills, MCP servers, or docs pointers.
+name: baseline
+version: "1"
+description: No help. The agent gets the task prompt and nothing else.

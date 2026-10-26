@@ -1,0 +1,29 @@
+# Docs sources for the docs map. Version rules are matched in order against the full URL.
+# TBD: confirm where pre-1.0 docs are served; the archive patterns below are placeholders.
+sources:
+  - name: dagger-docs
+    domains: [docs.dagger.io]
+    versions:
+      - pattern: "docs\\.dagger\\.io/(v?\\d+\\.\\d+)/"
+        version: "\\1"
+    default_version: "1.0"
+    sitemap: https://docs.dagger.io/sitemap.xml
+  - name: dagger-docs-archive
+    domains: [archive.docs.dagger.io, devel.docs.dagger.io]
+    versions:
+      - pattern: "/(v?\\d+\\.\\d+)/"
+        version: "\\1"
+    default_version: "pre-1.0"
+  - name: dagger-github
+    domains: [github.com, raw.githubusercontent.com]
+    path_prefixes: [github.com/dagger/, raw.githubusercontent.com/dagger/]
+    versions:
+      - pattern: "/(?:tree|blob|raw)/(v\\d+\\.\\d+\\.\\d+[^/]*)/"
+        version: "\\1"
+      - pattern: "githubusercontent\\.com/dagger/[^/]+/(v\\d+\\.\\d+\\.\\d+[^/]*)/"
+        version: "\\1"
+    default_version: "main"
+  - name: daggerverse
+    domains: [daggerverse.dev]
+  - name: dagger-site
+    domains: [dagger.io, www.dagger.io, dagger.cloud]

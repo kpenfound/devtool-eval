@@ -1,0 +1,50 @@
+[project]
+name = "devtool-eval"
+version = "0.1.0"
+description = "Harness that has coding agents adopt a dev tool in real repos, then measures how well they did and why."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+    "pydantic>=2.9",
+    "typer>=0.12",
+    "duckdb>=1.1",
+    "pytz",  # duckdb needs it to return TIMESTAMPTZ values
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "pyjwt[crypto]>=2.9",
+    "claude-agent-sdk>=0.2.174",
+    "openai-codex>=0.163.0",
+]
+
+[project.optional-dependencies]
+# Referee backends that talk to vendor APIs directly instead of through an agent SDK.
+anthropic = ["anthropic>=0.40"]
+openai = ["openai>=1.50"]
+
+[project.scripts]
+harness = "harness.cli:app"
+
+[project.entry-points."harness.packs"]
+dagger = "harness_dagger.pack:DaggerPack"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harness", "src/harness_dagger"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

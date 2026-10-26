@@ -1,0 +1,26 @@
+name: spring-petclinic
+url: https://github.com/spring-projects/spring-petclinic
+sha: 500158f732419217507c7656904b8e6aa1bcc0d6
+mirror: null
+stack:
+- java
+- maven
+- gradle
+- testcontainers
+tier: '2'
+tests: Services vs docker-in-docker
+ci:
+- workflow: .github/workflows/deploy-and-test-cluster.yml
+  job: deploy-and-test-cluster
+  summary: ''
+  note: 'deploys to a throwaway kind cluster to run tests: in scope despite the name'
+- workflow: .github/workflows/gradle-build.yml
+  job: build
+  summary: ''
+- workflow: .github/workflows/maven-build.yml
+  job: build
+  summary: ''
+expected_coverage: []
+expected_coverage_raw: 'dagger v1.0.0-beta.20 module recommend
+
+  '

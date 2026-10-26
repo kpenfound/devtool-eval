@@ -1,0 +1,52 @@
+name: flask
+url: https://github.com/pallets/flask
+sha: d086db856be187255b8ec61ef409357393020f32  # main, pinned 2026-10-24
+stack: [python, pytest, uv, tox]
+tier: "1"
+tests: Official module happy path; baseline
+ci:
+  - workflow: .github/workflows/tests.yaml
+    job: tests
+    summary: tox test matrix across Python 3.11-3.15, free-threaded 3.14t, PyPy, min and dev dependency versions
+    partial_out_of_scope:
+      - match: "os: windows-latest"
+        reason: non-linux
+      - match: "os: macos-latest"
+        reason: non-linux
+  - workflow: .github/workflows/tests.yaml
+    job: typing
+    summary: mypy and pyright via tox -e typing
+  - workflow: .github/workflows/pre-commit.yaml
+    job: main
+    summary: pre-commit hooks (ruff check/format, uv-lock, codespell, whitespace and merge-conflict hooks)
+  - workflow: .github/workflows/zizmor.yaml
+    job: zizmor
+    summary: zizmor security lint of GitHub Actions workflows
+  - workflow: .github/workflows/publish.yaml
+    job: build
+    summary: build sdist/wheel on tag push for release
+    out_of_scope: cd
+  - workflow: .github/workflows/publish.yaml
+    job: create-release
+    summary: draft GitHub release
+    out_of_scope: cd
+  - workflow: .github/workflows/publish.yaml
+    job: publish-pypi
+    summary: publish to PyPI
+    out_of_scope: cd
+  - workflow: .github/workflows/lock.yaml
+    job: lock
+    summary: scheduled bot that locks old closed issues and PRs
+    out_of_scope: automation
+    note: Not CI. Neither `cd` nor `non-linux` fits; needs a decision on the reason enum.
+# Captured with `harness corpus capture flask` (dagger module recommend, Dagger v1.0.0-beta.20).
+expected_coverage:
+  - dagger.io/python/mypy
+  - dagger.io/python/pytest
+  - dagger.io/python/ruff
+  - dagger.io/python/uv
+expected_coverage_raw: |
+  mypy: found pyproject.toml
+  pytest: found examples/javascript/pyproject.toml
+  ruff: found examples/celery/pyproject.toml
+  uv: found pyproject.toml

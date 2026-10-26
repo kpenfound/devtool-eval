@@ -1,0 +1,81 @@
+name: zod
+url: https://github.com/colinhacks/zod
+sha: afdac65e0f80c0ccf9e8909da97c411567908b57
+mirror: null
+stack:
+- typescript
+- vitest
+tier: '1'
+tests: Official module happy path for JS
+ci:
+- workflow: .github/workflows/claude-code-review.yml
+  job: claude-review
+  summary: ''
+  out_of_scope: automation
+  note: AI review bot on PRs, not a check
+- workflow: .github/workflows/claude.yml
+  job: claude
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/iso-4217.yml
+  job: refresh
+  summary: ''
+  out_of_scope: automation
+  note: weekly data refresh bot
+- workflow: .github/workflows/lockstep.yml
+  job: check
+  summary: ''
+  note: 'nightly check of version lockstep: in scope'
+- workflow: .github/workflows/pullfrog.yml
+  job: pullfrog
+  summary: ''
+  out_of_scope: automation
+  note: dispatch-only coding agent
+- workflow: .github/workflows/release.yml
+  job: test-node
+  summary: Test with TypeScript ${{ matrix.typescript }} on Node ${{ matrix.node }} (${{ matrix.os }})
+  out_of_scope: cd
+  note: pre-release gate; the same jobs run per commit in test.yml
+- workflow: .github/workflows/release.yml
+  job: lint
+  summary: Lint on Node ${{ matrix.node }}
+  out_of_scope: cd
+  note: pre-release gate; the same jobs run per commit in test.yml
+- workflow: .github/workflows/release.yml
+  job: check-circular
+  summary: Check for circular dependencies
+  out_of_scope: cd
+  note: pre-release gate; the same jobs run per commit in test.yml
+- workflow: .github/workflows/release.yml
+  job: stage
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/release.yml
+  job: finish
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/stale.yml
+  job: auto-close
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test.yml
+  job: test-node
+  summary: Test with TypeScript ${{ matrix.typescript }} on Node ${{ matrix.node }} (${{ matrix.os }})
+- workflow: .github/workflows/test.yml
+  job: lint
+  summary: Lint on Node ${{ matrix.node }}
+- workflow: .github/workflows/test.yml
+  job: check-circular
+  summary: Check for circular dependencies
+expected_coverage:
+- dagger.io/js/biome
+- dagger.io/js/vitest
+expected_coverage_raw: 'dagger v1.0.0-beta.20 module recommend
+
+  biomejs: found biome.jsonc
+
+  vitest: found packages/docs/vitest.config.ts'

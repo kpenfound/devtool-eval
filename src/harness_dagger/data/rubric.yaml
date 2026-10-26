@@ -1,0 +1,50 @@
+# Referee rubric for Dagger onboarding. Bump `version` on any change to criteria or
+# anchors: scores are tagged with it and never compared across versions.
+# Anchors are TBD until a few runs have been graded by hand (docs/DESIGN.md open items).
+version: "0.1"
+criteria:
+  - id: overlap
+    name: Overlap
+    question: >-
+      Does any custom function do what an installed or expected official module already
+      covers?
+    guidance: >-
+      A custom module that wraps or composes an official one is legitimate. Skipping an
+      official module's checks (check.skip) and replacing them with custom ones is
+      reimplementation. Compare against both installed modules and the repo's expected
+      official coverage. 4 = no overlap. Omit if there is no custom module.
+    anchors: {}
+  - id: custom_module_quality
+    name: Custom module quality
+    question: >-
+      Are custom module function boundaries sensible, and are checks and generators
+      annotated properly?
+    guidance: Omit if there is no custom module.
+    anchors: {}
+  - id: pipeline_soundness
+    name: Pipeline soundness
+    question: >-
+      Is the pipeline sound: caching (cache volumes, layer ordering), services instead of
+      docker-in-docker, secrets handled as secrets, dagger.lock committed?
+    guidance: The dagger.lock_committed fact is authoritative for the lockfile part.
+    anchors: {}
+  - id: fidelity
+    name: Fidelity
+    question: Do the checks exercise the project's real tests?
+    guidance: >-
+      Penalize skipped or deleted tests, narrowed scope (fewer packages, -k filters,
+      fewer test files), `|| true`, and checks that pass without running the suite.
+      Fidelity red-flag facts point at candidate lines; judge them in context.
+    anchors: {}
+  - id: idiomatic
+    name: Idiomatic 1.0 usage
+    question: >-
+      Does the setup use Dagger 1.0 workspace config and settings (dagger.toml, module
+      settings) rather than legacy dagger.json patterns?
+    anchors: {}
+
+# Regexes redacted from everything the referee reads, on top of the variant bundle's
+# names and content (redacted automatically).
+redaction_patterns:
+  - "(?i)harness[-_ ]?bundle"
+  - "(?i)devtool-eval"

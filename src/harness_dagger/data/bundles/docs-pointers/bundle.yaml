@@ -1,0 +1,8 @@
+# Example variant: user-level instructions pointing at the current docs. Real bundle
+# contents (skills, MCP, instructions) are still to be decided.
+name: docs-pointers
+version: "1"
+description: Points the agent at the Dagger 1.0 docs; no skills or MCP.
+docs_pointers:
+  - https://docs.dagger.io/getting-started/quickstart
+  - https://docs.dagger.io/cloud-checks

@@ -1,0 +1,130 @@
+name: pillow
+url: https://github.com/python-pillow/Pillow
+sha: 805c011c5a6b3f92c1fd82539a6fe0c378e1b901
+mirror: null
+stack:
+- python
+- c-extensions
+- pytest
+tier: '2'
+tests: Default image not enough; custom container or module
+ci:
+- workflow: .github/workflows/benchmark.yml
+  job: benchmark
+  summary: Benchmark Python ${{ matrix.python-version }}
+- workflow: .github/workflows/cifuzz.yml
+  job: Fuzzing
+  summary: ''
+- workflow: .github/workflows/docs.yml
+  job: build
+  summary: Docs
+- workflow: .github/workflows/lint.yml
+  job: lint
+  summary: Lint
+- workflow: .github/workflows/release-drafter.yml
+  job: update_release_draft
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/stale.yml
+  job: stale
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test-docker.yml
+  job: build
+  summary: ${{ matrix.docker }}
+- workflow: .github/workflows/test-docker.yml
+  job: success
+  summary: Docker Test Successful
+- workflow: .github/workflows/test-mingw.yml
+  job: build
+  summary: MinGW
+  out_of_scope: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test-skipped.yml
+  job: test
+  summary: Test Successful
+- workflow: .github/workflows/test-skipped.yml
+  job: test-docker
+  summary: Docker Test Successful
+- workflow: .github/workflows/test-skipped.yml
+  job: test-mingw
+  summary: MinGW
+- workflow: .github/workflows/test-skipped.yml
+  job: test-windows
+  summary: Windows Test Successful
+- workflow: .github/workflows/test-valgrind-memory.yml
+  job: build
+  summary: ${{ matrix.docker }} ${{ matrix.split }}
+- workflow: .github/workflows/test-valgrind.yml
+  job: build
+  summary: ${{ matrix.docker }} ${{ matrix.split }}
+- workflow: .github/workflows/test-windows.yml
+  job: build
+  summary: Python ${{ matrix.python-version }} (${{ matrix.architecture }})
+  partial_out_of_scope:
+  - match: windows
+    reason: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test-windows.yml
+  job: success
+  summary: Windows Test Successful
+- workflow: .github/workflows/test.yml
+  job: build
+  summary: ${{ matrix.os }} Python ${{ matrix.python-version }}
+  partial_out_of_scope:
+  - match: macos
+    reason: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test.yml
+  job: success
+  summary: Test Successful
+- workflow: .github/workflows/wheels.yml
+  job: sbom
+  summary: Generate SBOM
+- workflow: .github/workflows/wheels.yml
+  job: build-native-wheels
+  summary: ${{ matrix.name }}
+  partial_out_of_scope:
+  - match: macos
+    reason: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/wheels.yml
+  job: windows
+  summary: Windows ${{ matrix.cibw_arch }}
+  partial_out_of_scope:
+  - match: windows
+    reason: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/wheels.yml
+  job: sdist
+  summary: ''
+- workflow: .github/workflows/wheels.yml
+  job: count-dists
+  summary: Count dists
+- workflow: .github/workflows/wheels.yml
+  job: compare-dist-sizes
+  summary: Compare dist sizes vs PyPI
+  note: 'compares built dist sizes against PyPI: a check, in scope'
+- workflow: .github/workflows/wheels.yml
+  job: scientific-python-nightly-wheels-publish
+  summary: Upload wheels to scientific-python-nightly-wheels
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/wheels.yml
+  job: pypi-publish
+  summary: Upload release to PyPI
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+expected_coverage:
+- dagger.io/python/mypy
+- dagger.io/python/pytest
+- dagger.io/python/ruff
+expected_coverage_raw: 'dagger v1.0.0-beta.20 module recommend
+
+  mypy: found pyproject.toml
+
+  pytest: found pyproject.toml
+
+  ruff: found pyproject.toml'

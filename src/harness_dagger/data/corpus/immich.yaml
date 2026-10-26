@@ -1,0 +1,337 @@
+name: immich
+url: https://github.com/immich-app/immich
+sha: 256eb55dbe92ac77e02794442f9487e88ffed2b1
+mirror: null
+stack:
+- typescript
+- svelte
+- python-ml
+- postgres
+- android
+tier: '3'
+tests: Monorepo, services, third-party Android module; vitest in server, web and e2e (recommend cites
+  only e2e)
+ci:
+- workflow: .github/workflows/auto-close.yml
+  job: parse_template
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/auto-close.yml
+  job: close_template
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/auto-close.yml
+  job: close_llm
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/auto-close.yml
+  job: close_translations
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/auto-close.yml
+  job: reopen
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/backport.yml
+  job: backport
+  summary: Backport pull request
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/build-mobile.yml
+  job: pre-job
+  summary: ''
+- workflow: .github/workflows/build-mobile.yml
+  job: build-sign-android
+  summary: Build and sign Android
+- workflow: .github/workflows/build-mobile.yml
+  job: build-sign-ios
+  summary: Build and sign iOS
+  out_of_scope: non-linux
+  note: runs on a self-hosted Xcode runner
+- workflow: .github/workflows/cache-cleanup.yml
+  job: cleanup
+  summary: Cleanup
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/check-openapi.yml
+  job: check-openapi
+  summary: ''
+- workflow: .github/workflows/check-openapi.yml
+  job: check-mobile-patches
+  summary: ''
+- workflow: .github/workflows/cli.yml
+  job: publish
+  summary: CLI Publish
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/cli.yml
+  job: docker
+  summary: Docker
+- workflow: .github/workflows/close-duplicates.yml
+  job: should_run
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/close-duplicates.yml
+  job: get_body
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/close-duplicates.yml
+  job: get_checkbox_json
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/close-duplicates.yml
+  job: close_and_comment
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/codeql-analysis.yml
+  job: analyze
+  summary: Analyze
+- workflow: .github/workflows/docker.yml
+  job: pre-job
+  summary: ''
+- workflow: .github/workflows/docker.yml
+  job: retag_ml
+  summary: Re-Tag ML
+  out_of_scope: cd
+  note: retags published images in the registry
+- workflow: .github/workflows/docker.yml
+  job: retag_server
+  summary: Re-Tag Server
+  out_of_scope: cd
+  note: retags published images in the registry
+- workflow: .github/workflows/docker.yml
+  job: machine-learning
+  summary: Build and Push ML
+  note: builds images on PRs (in scope); pushes them on main/release (cd)
+- workflow: .github/workflows/docker.yml
+  job: server
+  summary: Build and Push Server
+  note: builds images on PRs (in scope); pushes them on main/release (cd)
+- workflow: .github/workflows/docker.yml
+  job: mirror
+  summary: Mirror to Docker Hub
+  out_of_scope: cd
+  note: mirrors images on release
+- workflow: .github/workflows/docker.yml
+  job: success-check-server
+  summary: Docker Build & Push Server Success
+- workflow: .github/workflows/docker.yml
+  job: success-check-ml
+  summary: Docker Build & Push ML Success
+- workflow: .github/workflows/docs-build.yml
+  job: pre-job
+  summary: ''
+- workflow: .github/workflows/docs-build.yml
+  job: build
+  summary: Docs Build
+- workflow: .github/workflows/docs-deploy.yml
+  job: checks
+  summary: Docs Deploy Checks
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/docs-deploy.yml
+  job: deploy
+  summary: Docs Deploy
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/docs-destroy.yml
+  job: deploy
+  summary: Docs Destroy
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/draft-release.yml
+  job: tag
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/draft-release.yml
+  job: build_mobile
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/draft-release.yml
+  job: draft_release
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/draft-release.yml
+  job: publish
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/fdroid.yml
+  job: update-index
+  summary: ''
+- workflow: .github/workflows/fix-format.yml
+  job: fix-formatting
+  summary: ''
+  out_of_scope: automation
+  note: label-triggered bot that commits formatting fixes
+- workflow: .github/workflows/merge-translations.yml
+  job: merge
+  summary: ''
+- workflow: .github/workflows/migration-order.yml
+  job: migration-order
+  summary: Verify migration ORDER
+- workflow: .github/workflows/org-pr-require-conventional-commit.yml
+  job: validate-pr-title
+  summary: Validate PR Title (conventional commit)
+- workflow: .github/workflows/org-zizmor.yml
+  job: zizmor
+  summary: Zizmor
+- workflow: .github/workflows/pr-label-validation.yml
+  job: validate-release-label
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/pr-labeler.yml
+  job: labeler
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/prepare-release.yml
+  job: merge_translations
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/prepare-release.yml
+  job: bump_version
+  summary: ''
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/preview-label.yaml
+  job: comment-status
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/preview-label.yaml
+  job: remove-label
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/sdk.yml
+  job: publish
+  summary: Publish `@immich/sdk`
+  out_of_scope: cd
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/static_analysis.yml
+  job: pre-job
+  summary: ''
+- workflow: .github/workflows/static_analysis.yml
+  job: mobile-dart-analyze
+  summary: Run Dart Code Analysis
+- workflow: .github/workflows/test.yml
+  job: pre-job
+  summary: ''
+- workflow: .github/workflows/test.yml
+  job: native-tests
+  summary: Test & Lint Native Core
+- workflow: .github/workflows/test.yml
+  job: script-unit-tests
+  summary: Scripts unit tests
+- workflow: .github/workflows/test.yml
+  job: server-unit-tests
+  summary: Test & Lint Server
+- workflow: .github/workflows/test.yml
+  job: cli-unit-tests
+  summary: Unit Test CLI
+- workflow: .github/workflows/test.yml
+  job: cli-unit-tests-win
+  summary: Unit Test CLI (Windows)
+  out_of_scope: non-linux
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/test.yml
+  job: web-lint
+  summary: Lint Web
+- workflow: .github/workflows/test.yml
+  job: web-unit-tests
+  summary: Test Web
+- workflow: .github/workflows/test.yml
+  job: i18n-tests
+  summary: Test i18n
+- workflow: .github/workflows/test.yml
+  job: e2e-tests-lint
+  summary: End-to-End Lint
+- workflow: .github/workflows/test.yml
+  job: server-medium-tests
+  summary: Medium Tests (Server)
+- workflow: .github/workflows/test.yml
+  job: e2e-tests-server-cli
+  summary: End-to-End Tests (Server & CLI)
+- workflow: .github/workflows/test.yml
+  job: e2e-tests-web
+  summary: End-to-End Tests (Web)
+- workflow: .github/workflows/test.yml
+  job: success-check-e2e
+  summary: End-to-End Tests Success
+- workflow: .github/workflows/test.yml
+  job: mobile-unit-tests
+  summary: Unit Test Mobile
+- workflow: .github/workflows/test.yml
+  job: ml-unit-tests
+  summary: Unit Test ML
+- workflow: .github/workflows/test.yml
+  job: e2e-tests-ml
+  summary: End-to-End Tests (ML, ${{ matrix.runner }})
+- workflow: .github/workflows/test.yml
+  job: github-files-formatting
+  summary: .github Files Formatting
+- workflow: .github/workflows/test.yml
+  job: shellcheck
+  summary: ShellCheck
+- workflow: .github/workflows/test.yml
+  job: generated-api-up-to-date
+  summary: OpenAPI Clients
+- workflow: .github/workflows/test.yml
+  job: sql-schema-up-to-date
+  summary: SQL Schema Checks
+- workflow: .github/workflows/weblate-lock.yml
+  job: pre-job
+  summary: ''
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/weblate-lock.yml
+  job: enforce-lock
+  summary: Check Weblate Lock
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+- workflow: .github/workflows/weblate-lock.yml
+  job: success-check-lock
+  summary: Weblate Lock Check Success
+  out_of_scope: automation
+  note: 'auto-proposed: review'
+expected_coverage:
+- dagger.io/js/eslint
+- dagger.io/js/playwright
+- dagger.io/js/prettier
+- dagger.io/js/vitest
+- dagger.io/python/mypy
+- dagger.io/python/pytest
+- dagger.io/python/ruff
+- dagger.io/python/uv
+expected_coverage_raw: 'dagger v1.0.0-beta.20 module recommend
+
+  eslint: found e2e/eslint.config.mjs
+
+  mypy: found machine-learning/pyproject.toml
+
+  playwright: found e2e/playwright.config.ts
+
+  prettier: found .prettierrc
+
+  pytest: found machine-learning/pyproject.toml
+
+  ruff: found machine-learning/pyproject.toml
+
+  uv: found machine-learning/pyproject.toml
+
+  vitest: found e2e/vitest.config.ts'

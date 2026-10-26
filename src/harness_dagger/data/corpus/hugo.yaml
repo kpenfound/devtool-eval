@@ -1,0 +1,43 @@
+name: hugo
+url: https://github.com/gohugoio/hugo
+sha: f63482bfbfe6aab81aaa198d9a006c7047f08d89
+mirror: null
+stack:
+- go
+tier: 1-2
+tests: Large single-language build and test
+ci:
+- workflow: .github/workflows/image.yml
+  job: build
+  summary: ''
+  note: builds the Docker image on PRs (in scope); pushes it to GHCR on release (cd)
+- workflow: .github/workflows/stale.yml
+  job: stale
+  summary: ''
+  out_of_scope: automation
+  note: stale-issue bot
+- workflow: .github/workflows/test.yml
+  job: test
+  summary: ''
+  partial_out_of_scope:
+  - match: windows
+    reason: non-linux
+  note: Windows matrix entries out of scope
+- workflow: .circleci/config.yml
+  job: '*'
+  summary: 'release workflow on release-* branches: prepare_release, build_container1/2, archive_and_release
+    (hugoreleaser)'
+  out_of_scope: cd
+  note: builds and publishes release binaries; no tests or checks
+expected_coverage:
+- dagger.io/go
+- dagger.io/go/staticcheck
+expected_coverage_raw: 'dagger v1.0.0-beta.20 module recommend
+
+  go: found docs/go.mod
+
+  prettier: found docs/.prettierrc
+
+  staticcheck: found tpl/internal/go_templates/staticcheck.conf'
+bonus_coverage:
+  dagger.io/js/prettier: docs site dev dependency (docs/package.json); hugo's CI never runs it

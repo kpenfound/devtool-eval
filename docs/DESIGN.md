@@ -73,7 +73,7 @@ Each run varies one cell of: agent × repo × bundle × tool version × Cloud av
 | Repo | Stack | Tier | What it tests |
 | --- | --- | --- | --- |
 | Flask | Python, pytest | 1 | Official module happy path; baseline |
-| Small vitest lib (TBD) | TS, vitest | 1 | Official module happy path for JS |
+| zod (small vitest lib) | TS, vitest | 1 | Official module happy path for JS |
 | Hugo | Go | 1–2 | Large single-language build and test |
 | Pillow | Python, C extensions | 2 | Default image not enough; custom container or module |
 | spring-petclinic | Java, Testcontainers | 2 | Services vs docker-in-docker |
