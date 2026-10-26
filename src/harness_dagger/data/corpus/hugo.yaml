@@ -1,7 +1,6 @@
 name: hugo
 url: https://github.com/gohugoio/hugo
 sha: f63482bfbfe6aab81aaa198d9a006c7047f08d89
-mirror: null
 stack:
 - go
 tier: 1-2

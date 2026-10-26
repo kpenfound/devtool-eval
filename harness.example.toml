@@ -50,6 +50,7 @@ name = "local-01"
 # private_key_path = "~/.config/devtool-eval/app.private-key.pem"
 # bot_name = "Developer"
 # bot_email = "developer@users.noreply.github.com"
+# mirrors = true                            # fetch corpus repos from <org>/ref-<name>
 
 [isolation]
 home_passthrough = [".docker", ".orbstack"] # symlinked into each run's fake HOME (.orbstack: macOS only)

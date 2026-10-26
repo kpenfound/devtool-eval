@@ -58,7 +58,10 @@ rubric's redaction list, but the agent itself is not shielded.
    creates private repos and disables Actions on them, because slots carry the upstream
    repo's workflow files.
 5. Optional mirrors: `harness github mirror <repo>` creates a private, non-fork `ref-<name>`
-   at the pinned SHA. Then set `mirror:` in the corpus entry.
+   at the pinned SHA, so a corpus entry survives upstream rewriting or deleting it. Then set
+   `github.mirrors = true` in `harness.toml`, which fetches every corpus repo from its
+   mirror. It lives in your config rather than the corpus files, which are public and
+   would otherwise name your org.
 
 Each run gets an installation token scoped to its slot only. It's revoked in teardown.
 

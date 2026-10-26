@@ -1,7 +1,6 @@
 name: immich
 url: https://github.com/immich-app/immich
 sha: 256eb55dbe92ac77e02794442f9487e88ffed2b1
-mirror: null
 stack:
 - typescript
 - svelte

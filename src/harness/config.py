@@ -56,6 +56,9 @@ class GitHubConfig(BaseModel):
     # The agent's git identity. Agents see it, so it shouldn't name the eval.
     bot_name: str = "Developer"
     bot_email: str = "developer@users.noreply.github.com"
+    # Fetch corpus repos from <org>/ref-<name> (made by `harness github mirror`) instead of
+    # upstream. Set here, not in the committed corpus, so the org name stays private.
+    mirrors: bool = False
     # Permissions granted to the agent's slot-scoped token.
     agent_permissions: dict[str, str] = Field(
         default_factory=lambda: {

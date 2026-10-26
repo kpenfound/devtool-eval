@@ -43,7 +43,6 @@ class CorpusEntry(BaseModel):
     name: str
     url: str
     sha: str | None = None  # pinned SHA; None until pinned
-    mirror: str | None = None  # optional ref-<name> mirror (owner/repo)
     stack: list[str] = Field(default_factory=list)
     tier: str = "1"
     tests: str = ""

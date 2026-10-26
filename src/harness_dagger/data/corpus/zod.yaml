@@ -1,7 +1,6 @@
 name: zod
 url: https://github.com/colinhacks/zod
 sha: afdac65e0f80c0ccf9e8909da97c411567908b57
-mirror: null
 stack:
 - typescript
 - vitest

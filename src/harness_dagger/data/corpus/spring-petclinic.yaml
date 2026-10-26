@@ -1,7 +1,6 @@
 name: spring-petclinic
 url: https://github.com/spring-projects/spring-petclinic
 sha: 500158f732419217507c7656904b8e6aa1bcc0d6
-mirror: null
 stack:
 - java
 - maven

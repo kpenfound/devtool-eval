@@ -393,12 +393,12 @@ def github_mirror(name: str, config: ConfigOpt = None, pack: PackOpt = None) -> 
     repo = f"{org}/ref-{name}"
     github.create_private_repo(org, f"ref-{name}", gh.harness_token(), f"mirror of {entry.url} @ {entry.sha}")
     pool = SlotPool(cfg)
-    cache = pool.cached_repo(entry)
+    cache = pool.cached_repo(entry, upstream=True)
     token = gh.harness_token([repo])
     sh(["git", "push", "-q", "--force", f"https://github.com/{repo}.git",
         f"refs/pins/{entry.sha}:refs/heads/main"], cwd=cache, env=pool.git_env(token))
     github.Repo(repo, token).disable_actions()
-    typer.echo(f"{repo} @ {entry.sha} (set `mirror: {repo}` in the corpus entry to use it)")
+    typer.echo(f"{repo} @ {entry.sha} (set `github.mirrors = true` in harness.toml to use mirrors)")
 
 
 if __name__ == "__main__":

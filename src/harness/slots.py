@@ -137,16 +137,27 @@ class SlotPool:
             env.update(git_credential_env(token))
         return env
 
-    def cached_repo(self, entry: CorpusEntry, token: str | None = None) -> Path:
-        """A bare clone of the corpus repo (or its mirror) containing the pinned SHA."""
+    def mirror(self, entry: CorpusEntry) -> str | None:
+        gh = self.config.github
+        return f"{gh.org}/ref-{entry.name}" if gh.mirrors and gh.org else None
+
+    def cached_repo(self, entry: CorpusEntry, token: str | None = None, upstream: bool = False) -> Path:
+        """A bare clone of the corpus repo (or its mirror) containing the pinned SHA.
+
+        ``upstream`` skips the mirror, for pinning and mirroring, where the SHA may not be
+        mirrored yet.
+        """
         if not entry.sha:
             raise ValueError(f"corpus entry {entry.name} has no pinned SHA")
         cache = self.config.cache / "repos" / f"{entry.name}.git"
-        src = f"https://github.com/{entry.mirror}.git" if entry.mirror else entry.url
-        env = self.git_env(token if entry.mirror else None)
+        mirror = None if upstream else self.mirror(entry)
+        src = f"https://github.com/{mirror}.git" if mirror else entry.url
+        env = self.git_env(token if mirror else None)
         if not cache.exists():
             cache.parent.mkdir(parents=True, exist_ok=True)
             run(["git", "clone", "--bare", src, str(cache)], env=env)
+        else:
+            run(["git", "remote", "set-url", "origin", src], cwd=cache, env=env)  # mirrors toggled
         has = run(["git", "cat-file", "-e", f"{entry.sha}^{{commit}}"], cwd=cache, env=env, check=False)
         if has.returncode != 0:
             run(["git", "fetch", "origin", entry.sha], cwd=cache, env=env)

@@ -48,7 +48,7 @@ def test_capture_respects_coverage_exclude(tmp_path, monkeypatch):
         def __init__(self, config):
             pass
 
-        def cached_repo(self, entry):
+        def cached_repo(self, entry, upstream=False):
             return tmp_path / "cache.git"
 
     class Pack:

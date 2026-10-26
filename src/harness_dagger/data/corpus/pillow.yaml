@@ -1,7 +1,6 @@
 name: pillow
 url: https://github.com/python-pillow/Pillow
 sha: 805c011c5a6b3f92c1fd82539a6fe0c378e1b901
-mirror: null
 stack:
 - python
 - c-extensions

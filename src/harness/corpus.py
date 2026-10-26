@@ -180,7 +180,7 @@ def capture(entry: CorpusEntry, pack: ToolPack, config: HarnessConfig, log=print
     if not entry.sha:
         raise ValueError(f"{entry.name}: pin a SHA first")
     pool = SlotPool(config)
-    cache = pool.cached_repo(entry)
+    cache = pool.cached_repo(entry, upstream=True)
     with tempfile.TemporaryDirectory(prefix=f"capture-{entry.name}-", dir=config.cache) as tmp:
         tmp_path = Path(tmp)
         wd = tmp_path / entry.name
