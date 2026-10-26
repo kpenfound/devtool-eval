@@ -86,9 +86,14 @@ def normalize(run_id: str, config: ConfigOpt = None) -> None:
 def analyze(run_id: str, config: ConfigOpt = None, pack: PackOpt = None) -> None:
     """Re-run deterministic analyzers and the docs map for a run bundle."""
     from harness.analysis import analyze_bundle
+    from harness.store import Store
 
     cfg, p = _ctx(config, pack)
-    for f in analyze_bundle(_bundle(cfg, run_id), p):
+    b = _bundle(cfg, run_id)
+    facts = analyze_bundle(b, p)
+    with Store(cfg.db) as store:
+        store.ingest(b)
+    for f in facts:
         typer.echo(f"{f.key}: {json.dumps(f.value, default=str)}")
 
 

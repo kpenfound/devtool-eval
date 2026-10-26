@@ -5,10 +5,19 @@ The referee only judges what needs judgment; everything computable lives here.
 
 from __future__ import annotations
 
+import json
+import re
+
 from harness import docsmap
 from harness.bundle import ANALYSIS, DOCS_MAP, RunBundle
-from harness.models import Fact, Phase
+from harness.events import Event
+from harness.models import EvidenceRef, Fact, Phase
 from harness.pack import AnalysisContext, ToolPack
+
+# The harness repo is public. An agent that finds it can read the rubric, expected coverage
+# and referee prompt, so a run whose transcript mentions the harness by name (a fetch, a
+# clone, a search result, or a path that leaked it) is flagged.
+HARNESS_REPO_RE = re.compile(r"(?i)devtool[-_ ]?eval")
 
 
 def analysis_context(bundle: RunBundle, pack: ToolPack) -> AnalysisContext:
@@ -57,7 +66,24 @@ def core_facts(actx: AnalysisContext, bundle: RunBundle) -> list[Fact]:
         facts.append(Fact(key=f"integration.{integ.name}.green", value=integ.green))
     fb = bundle.feedback()
     facts.append(Fact(key="feedback.parsed", value=bool(fb and not fb.parse_error)))
+    facts.append(harness_exposure(actx.events))
     return facts
+
+
+def harness_exposure(events: list[Event]) -> Fact:
+    def text(ev: Event) -> str:
+        parts = [ev.command, ev.url, ev.query, ev.text, *ev.paths]
+        if ev.input:
+            parts.append(json.dumps(ev.input, default=str))
+        return "\n".join(p for p in parts if p)
+
+    hits = [ev.id for ev in events if HARNESS_REPO_RE.search(text(ev))]
+    return Fact(
+        key="harness_exposure",
+        value=bool(hits),
+        detail=f"{len(hits)} events mention the harness by name" if hits else "",
+        evidence=[EvidenceRef(event=h) for h in hits],
+    )
 
 
 def analyze_bundle(bundle: RunBundle, pack: ToolPack) -> list[Fact]:

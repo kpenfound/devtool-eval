@@ -75,6 +75,12 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
             row[key] = facts[r["run_id"]].get(key)
         rows.append(row)
     parts.append(_table(rows, list(rows[0].keys())))
+    exposed = [r["run_id"] for r in runs if facts[r["run_id"]].get("harness_exposure")]
+    if exposed:
+        parts.append(
+            "\n**Harness exposure:** these runs' transcripts mention the harness by name, so their "
+            "results may be contaminated (see the `harness_exposure` fact): " + ", ".join(exposed) + "\n"
+        )
 
     parts.append("\n## Cells\n")
     cells = store.query(
