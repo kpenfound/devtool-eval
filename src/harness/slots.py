@@ -54,9 +54,24 @@ class SlotPool:
                 return s
         raise KeyError(f"no slot named {name!r}")
 
-    def lease(self, run_id: str, preferred: str | None = None) -> Lease:
-        candidates = [self.get(preferred)] if preferred else self.config.slots
-        for slot in candidates:
+    def candidates(self, preferred: str | None = None, *, remote_only: bool = False) -> list[SlotConfig]:
+        """Slots a run may lease, GitHub slots first: local-only slots are a fallback for
+        before the test org exists. ``remote_only`` (cloud runs) never falls back, since Cloud
+        Checks need a GitHub ``origin``."""
+        slots = [self.get(preferred)] if preferred else sorted(self.config.slots, key=lambda s: s.repo is None)
+        if remote_only:
+            if preferred and not slots[0].repo:
+                raise ValueError(f"slot {preferred} is local-only; cloud runs need a GitHub slot")
+            slots = [s for s in slots if s.repo]
+            if not slots:
+                raise ValueError(
+                    "cloud runs need a GitHub slot ([[slots]] with a repo, docs/SETUP.md step 4); "
+                    "none is configured. Use --no-cloud for local-only runs."
+                )
+        return slots
+
+    def lease(self, run_id: str, preferred: str | None = None, *, remote_only: bool = False) -> Lease:
+        for slot in self.candidates(preferred, remote_only=remote_only):
             path = self._lease_path(slot.name)
             try:
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)

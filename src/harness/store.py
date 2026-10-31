@@ -74,7 +74,7 @@ class Store:
                 meta.bundle_hash, meta.spec.agent.value, meta.spec.model,
                 meta.versions.get("tool") or meta.spec.tool_version, meta.spec.cloud,
                 meta.status.value, meta.slot, meta.repo_sha, meta.started_at, meta.finished_at,
-                facts.get("verify.passed"), facts.get("verify.attempts"),
+                facts.get("passed"), facts.get("verify.attempts"),
                 facts.get("retries_needed"), facts.get("cost_usd"), facts.get("duration_s"),
                 facts.get("turns"), facts.get("pushed"), json.dumps(meta.versions),
                 str(bundle.path),

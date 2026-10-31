@@ -39,8 +39,9 @@ def analysis_context(bundle: RunBundle, pack: ToolPack) -> AnalysisContext:
 def core_facts(actx: AnalysisContext, bundle: RunBundle) -> list[Fact]:
     meta = actx.meta
     work_turns = [t for t in meta.turns if t.phase != Phase.feedback]
+    verified = bool(meta.final_verify and meta.final_verify.passed)
     facts = [
-        Fact(key="verify.passed", value=bool(meta.final_verify and meta.final_verify.passed)),
+        Fact(key="verify.passed", value=verified, detail="the pack's verify passed on the agent's work tree"),
         Fact(key="verify.attempts", value=len(meta.verifies)),
         Fact(key="verify.checks", value=meta.final_verify.checks if meta.final_verify else []),
         Fact(
@@ -61,13 +62,43 @@ def core_facts(actx: AnalysisContext, bundle: RunBundle) -> list[Fact]:
     ]
     git_state = bundle.read_json("git_state.json") or {}
     facts.append(Fact(key="uncommitted_changes", value=bool(git_state.get("status"))))
+    delivered, why = delivery(meta.pushed_shas, git_state)
+    facts.append(Fact(key="delivered", value=delivered, detail=why))
+    facts.append(Fact(
+        key="passed",
+        value=verified and delivered,
+        detail="verify passed and the verified tree is what was pushed",
+    ))
     for integ in meta.integration:
         facts.append(Fact(key=f"integration.{integ.name}.enabled", value=integ.enabled))
         facts.append(Fact(key=f"integration.{integ.name}.green", value=integ.green))
+        if integ.error:
+            facts.append(Fact(key=f"integration.{integ.name}.error", value=integ.error))
     fb = bundle.feedback()
     facts.append(Fact(key="feedback.parsed", value=bool(fb and not fb.parse_error)))
     facts.append(harness_exposure(actx.events))
     return facts
+
+
+def delivery(pushed_shas: list[str], git_state: dict) -> tuple[bool, str]:
+    """Whether the tree verify ran on is what the agent pushed.
+
+    Verify runs on the work tree, so an agent that never committed, or kept working after
+    its last push, can pass verify with nothing (or something else) on ``origin``.
+    ``git_state`` is captured right after the last verify, before the feedback turn.
+    """
+    head, status = git_state.get("head"), git_state.get("status")
+    if not pushed_shas:
+        return False, "nothing pushed"
+    if head not in pushed_shas:
+        return False, f"HEAD {(head or '?')[:12]} isn't a pushed branch head"
+    if status:
+        return False, "uncommitted changes in the verified tree:\n" + status
+    return True, ""
+
+
+def passed(meta, git_state: dict) -> bool:
+    return bool(meta.final_verify and meta.final_verify.passed) and delivery(meta.pushed_shas, git_state)[0]
 
 
 def harness_exposure(events: list[Event]) -> Fact:

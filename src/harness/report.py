@@ -35,9 +35,13 @@ def _fmt(v) -> str:
 def _where(filters: dict[str, str | None]) -> tuple[str, list]:
     clauses, params = [], []
     for k, v in filters.items():
-        if v is not None:
+        if v is None:
+            continue
+        if k == "since":
+            clauses.append("r.started_at >= CAST(? AS TIMESTAMPTZ)")
+        else:
             clauses.append(f"r.{k} = ?")
-            params.append(v)
+        params.append(v)
     return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
 
 
@@ -64,7 +68,9 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
             "bundle": f"{r['bundle']}@{r['bundle_version']}",
             "tool": r["tool_version"],
             "cloud": r["cloud"],
+            "slot": r["slot"],
             "status": r["status"],
+            "verified": facts[r["run_id"]].get("verify.passed"),
             "passed": r["passed"],
             "retries": r["retries_needed"],
             "cost": r["cost_usd"],
@@ -81,6 +87,17 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
             "\n**Harness exposure:** these runs' transcripts mention the harness by name, so their "
             "results may be contaminated (see the `harness_exposure` fact): " + ", ".join(exposed) + "\n"
         )
+
+    unmeasured = defaultdict(list)
+    for r in runs:
+        for key, value in facts[r["run_id"]].items():
+            if key.startswith("integration.") and key.endswith(".error"):
+                unmeasured[f"{key.removesuffix('.error')}: {value}"].append(r["run_id"])
+    if unmeasured:
+        parts.append("\n**Integration not measured** (blank results below are not agent outcomes):\n")
+        for reason, run_ids in unmeasured.items():
+            parts.append(f"- {reason} ({len(run_ids)} runs): {', '.join(run_ids)}")
+        parts.append("")
 
     parts.append("\n## Cells\n")
     cells = store.query(

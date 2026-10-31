@@ -56,7 +56,10 @@ rubric's redaction list, but the agent itself is not shielded.
    and download a private key. Uncomment and fill the `[github]` block in `harness.toml`.
 4. Add `[[slots]]` entries (`project-01`, `project-02`, ...) and run `harness slots init`. This
    creates private repos and disables Actions on them, because slots carry the upstream
-   repo's workflow files.
+   repo's workflow files. Then remove the `local-01` slot: on a local slot `origin` is a
+   path on disk, which agents see, and Cloud Checks can't work. The harness leases GitHub
+   slots first and refuses `--cloud` runs without one, but a run that falls back to a
+   local slot isn't comparable to one on GitHub.
 5. Optional mirrors: `harness github mirror <repo>` creates a private, non-fork `ref-<name>`
    at the pinned SHA, so a corpus entry survives upstream rewriting or deleting it. Then set
    `github.mirrors = true` in `harness.toml`, which fetches every corpus repo from its

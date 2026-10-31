@@ -149,6 +149,7 @@ class Runner:
         entry = corpus[spec.repo]
         if not entry.ready:
             raise ValueError(f"corpus entry {entry.name} has no pinned SHA yet")
+        self.pool.candidates(spec.slot, remote_only=spec.cloud)  # config errors fail before a run dir exists
         variant = resolve_variant(self.pack.bundle_dir(spec.bundle))
         retries = self.config.retries if spec.retries is None else spec.retries
 
@@ -165,7 +166,7 @@ class Runner:
         bundle.write_json("variant.json", variant.model_dump())
         self.log(f"run {meta.run_id}")
         try:
-            lease = self.pool.lease(meta.run_id, spec.slot)
+            lease = self.pool.lease(meta.run_id, spec.slot, remote_only=spec.cloud)
         except BaseException as e:
             meta.status, meta.error, meta.finished_at = RunStatus.failed, str(e), utcnow()
             bundle.write_meta(meta)

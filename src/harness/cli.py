@@ -62,11 +62,13 @@ def run(
     spec = RunSpec(repo=repo, bundle=bundle, agent=agent, pack=p.name, tool_version=tool_version,
                    cloud=cloud, retries=retries, slot=slot, model=model)
     result = Runner(cfg, p, log=lambda m: typer.echo(m, err=True)).run(spec, referee=referee)
+    from harness.analysis import passed
+
     meta = result.meta()
     typer.echo(json.dumps({
         "run_id": meta.run_id,
         "status": meta.status,
-        "passed": bool(meta.final_verify and meta.final_verify.passed),
+        "passed": passed(meta, result.read_json("git_state.json") or {}),
         "bundle": str(result.path),
         "error": (meta.error or "").splitlines()[0] if meta.error else None,
     }, indent=2))
@@ -129,6 +131,7 @@ def report(
     repo: str | None = None,
     bundle: str | None = None,
     agent: str | None = None,
+    since: Annotated[str | None, typer.Option(help="Only runs started at or after this date/time, e.g. 2026-10-29")] = None,
     output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
     config: ConfigOpt = None,
     pack: PackOpt = None,
@@ -142,7 +145,7 @@ def report(
         "dagger.module_strategy", "dagger.ci_choice", "integration.cloud_checks.green",
     ]
     with Store(cfg.db) as store:
-        text = rep.build(store, report_facts=facts, repo=repo, bundle=bundle, agent=agent)
+        text = rep.build(store, report_facts=facts, repo=repo, bundle=bundle, agent=agent, since=since)
     if output:
         output.write_text(text)
         typer.echo(str(output))
@@ -242,12 +245,13 @@ def bundles(pack: PackOpt = None, config: ConfigOpt = None) -> None:
 @app.command(name="runs")
 def list_runs(config: ConfigOpt = None) -> None:
     """List run bundles."""
+    from harness.analysis import passed as run_passed
     from harness.bundle import list_bundles
 
     cfg = load_config(config)
     for b in list_bundles(cfg.runs):
         m = b.meta()
-        passed = m.final_verify.passed if m.final_verify else None
+        passed = run_passed(m, b.read_json("git_state.json") or {}) if m.final_verify else None
         typer.echo(f"{m.run_id}  {m.status:9}  passed={passed}  scored={b.scorecard() is not None}")
 
 

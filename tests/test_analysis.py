@@ -16,3 +16,13 @@ def test_harness_exposure():
     fact = harness_exposure(events)
     assert fact.value is True
     assert [e.event for e in fact.evidence] == ["e2", "e3", "e4"]
+
+
+def test_delivery_needs_the_verified_tree_pushed():
+    from harness.analysis import delivery
+
+    clean = {"head": "abc", "status": ""}
+    assert delivery(["abc"], clean) == (True, "")
+    assert delivery([], clean)[0] is False  # verified locally, never pushed
+    assert delivery(["old"], clean)[0] is False  # kept working after the last push
+    assert delivery(["abc"], {"head": "abc", "status": "?? .dagger/"})[0] is False  # forgot to commit

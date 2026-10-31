@@ -34,8 +34,10 @@ api_key_env = "OPENAI_API_KEY"
 sandbox = "full-access"
 # model = "..."
 
-# Slots: private generic repos in the test org. A slot without `repo` is local-only
-# (no pushes, no integration checks), which is handy before the org exists.
+# Slots: private generic repos in the test org. A slot without `repo` is local-only: its
+# `origin` is a bare repo on disk, so nothing reaches GitHub and Cloud Checks can't work.
+# It's only for before the org exists; remove it once GitHub slots are set up. GitHub slots
+# are always leased first, and --cloud runs never get a local slot.
 [[slots]]
 name = "local-01"
 
