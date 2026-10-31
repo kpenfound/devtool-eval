@@ -101,7 +101,7 @@ class Runner:
             entry = self.pack.corpus().get(meta.spec.repo)
         except (FileNotFoundError, ValueError):
             bundle, entry = None, None
-        token = self._harness_token(slot.repo)
+        token = self._harness_token(slot.repo, entry)
         if entry is not None:
             ctx = self._bare_ctx(bundle, slot, entry, token)
             for integ in self.pack.integrations:
@@ -113,10 +113,12 @@ class Runner:
             _quietly(lambda: github.revoke(token), self.log)
         self.pool.force_release(slot.name)
 
-    def _harness_token(self, repo: str | None) -> str | None:
+    def _harness_token(self, repo: str | None, entry=None) -> str | None:
+        """Scoped to the slot, plus the corpus repo's private mirror when mirrors are on."""
         if not (self.app and repo):
             return None
-        return self.app.harness_token([repo])
+        mirror = self.pool.mirror(entry) if entry else None
+        return self.app.harness_token([repo, mirror] if mirror else [repo])
 
     def _bare_ctx(self, bundle, slot, entry, token) -> RunContext:
         run_dir = bundle.path if bundle else self.config.state / "recovery"
@@ -175,7 +177,7 @@ class Runner:
         harness_token: str | None = None
         ctx: RunContext | None = None
         try:
-            harness_token = self._harness_token(lease.slot.repo)
+            harness_token = self._harness_token(lease.slot.repo, entry)
             ctx = self._setup(bundle, meta, lease, entry, variant, harness_token)
             bundle.write_meta(meta)
             self._execute(bundle, meta, ctx, retries)

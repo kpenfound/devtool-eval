@@ -44,7 +44,11 @@ class GitHubApp:
             json=body,
             timeout=30,
         )
-        r.raise_for_status()
+        if r.is_error:  # GitHub's message says which repo or permission it refused
+            raise RuntimeError(
+                f"GitHub App token for {repos or 'all repos'} with {permissions or 'all'} permissions: "
+                f"{r.status_code} {r.text[:500]}"
+            )
         return r.json()["token"]
 
     def slot_token(self, repo: str) -> str:
