@@ -62,8 +62,9 @@ GitHub org and Dagger Cloud are set up.
 | Command | |
 | --- | --- |
 | `run` | one scenario end to end |
+| `sweep run/status/list` | a named, resumable grid of scenarios (see below) |
 | `normalize` / `analyze` / `referee` | re-derive one stage for an existing bundle (`referee --dry-run` prints the blinded prompt) |
-| `report` | markdown across runs: cells, scores per rubric version, friction, issues, docs map, calibration |
+| `report` | markdown across runs (`--sweep NAME` for one sweep): cells, scores per rubric version, friction, issues, docs map, calibration |
 | `calibrate` | human-scores.yaml vs referee |
 | `parity` | Claude CLI vs SDK init-frame diff |
 | `corpus list/show/capture` | inventory CI and capture expected coverage (`dagger module recommend`) at the pinned SHA |
@@ -72,6 +73,33 @@ GitHub org and Dagger Cloud are set up.
 | `github mirror` | create a `ref-<name>` mirror |
 | `store rebuild/sql` | DuckDB index |
 | `doctor`, `bundles`, `runs` | |
+
+## Sweeps
+
+```sh
+uv run harness sweep run nov-skills --repo flask --repo zod --bundle baseline --bundle skills-dir \
+  --agent claude --agent codex --cloud off --reps 3 --dry-run   # print cells and preflight
+uv run harness sweep run nov-skills --repo flask ...            # create (asks first; -y skips) and start
+uv run harness sweep run nov-skills                             # resume: no flags needed
+uv run harness sweep status nov-skills
+uv run harness report --sweep nov-skills -o reports/nov-skills.md
+```
+
+Omitted grid flags mean all of them: every pinned corpus repo, every bundle, every agent.
+`--cloud` is `on` (default), `off` or `both`. The plan goes in `<state_dir>/sweeps/<name>/plan.json`
+and freezes the model per agent, retries, referee on/off, and each bundle's version and hash.
+
+Progress lives in the run bundles, not the plan: each run is tagged with its sweep and cell, so
+stopping or crashing the harness at any point loses nothing but the run in progress. The rules:
+
+- A `completed` run finishes its cell, even if the agent failed the task.
+- `failed`/`crashed` runs are harness problems and are retried, up to `--max-attempts` (2) per
+  cell. After that the cell is `gave_up`. `--max-consecutive-failures` (3) stops the whole sweep.
+- A resume refuses to continue if a bundle's content changed, or if cells using the installed
+  tool version ran on different versions. Pin it with `--tool-version` or pass `--allow-drift`.
+- Giving grid flags to an existing sweep must match its plan, or it errors. Use a new name to
+  change the grid.
+- Cells run one at a time, and a lock stops two processes from running the same sweep.
 
 ## Layout
 

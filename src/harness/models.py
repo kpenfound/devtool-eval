@@ -110,6 +110,8 @@ class RunSpec(BaseModel):
     retries: int | None = None  # None: config default
     slot: str | None = None  # None: any free slot
     model: str | None = None
+    sweep: str | None = None  # the named sweep this run belongs to (harness.sweep)
+    sweep_cell: str | None = None  # its cell key within that sweep
 
 
 class Budget(BaseModel):

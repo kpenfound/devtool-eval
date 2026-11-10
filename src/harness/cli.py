@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -17,11 +18,13 @@ slots_app = typer.Typer(no_args_is_help=True, help="Slot pool status and cleanup
 store_app = typer.Typer(no_args_is_help=True, help="DuckDB store.")
 docs_app = typer.Typer(no_args_is_help=True, help="Docs map sources.")
 github_app = typer.Typer(no_args_is_help=True, help="GitHub App plumbing.")
+sweep_app = typer.Typer(no_args_is_help=True, help="Named, resumable sweeps over the scenario grid.")
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(slots_app, name="slots")
 app.add_typer(store_app, name="store")
 app.add_typer(docs_app, name="docs")
 app.add_typer(github_app, name="github")
+app.add_typer(sweep_app, name="sweep")
 
 ConfigOpt = Annotated[Path | None, typer.Option("--config", "-c", help="harness.toml path")]
 PackOpt = Annotated[str | None, typer.Option("--pack", help="Tool pack (default from config)")]
@@ -131,6 +134,7 @@ def report(
     repo: str | None = None,
     bundle: str | None = None,
     agent: str | None = None,
+    sweep: Annotated[str | None, typer.Option(help="Only runs from this named sweep")] = None,
     since: Annotated[str | None, typer.Option(help="Only runs started at or after this date/time, e.g. 2026-10-29")] = None,
     output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
     config: ConfigOpt = None,
@@ -145,7 +149,7 @@ def report(
         "dagger.module_strategy", "dagger.ci_choice", "integration.cloud_checks.green",
     ]
     with Store(cfg.db) as store:
-        text = rep.build(store, report_facts=facts, repo=repo, bundle=bundle, agent=agent, since=since)
+        text = rep.build(store, report_facts=facts, repo=repo, bundle=bundle, agent=agent, sweep=sweep, since=since)
     if output:
         output.write_text(text)
         typer.echo(str(output))
@@ -212,14 +216,11 @@ def doctor(config: ConfigOpt = None, pack: PackOpt = None) -> None:
     check("state dir", True, str(cfg.state))
     for tool in ("git", "docker", "dagger", "claude", "codex", "gh"):
         check(f"{tool} on PATH", bool(shutil.which(tool)), shutil.which(tool) or "")
-    c = cfg.agents.claude
-    env = c.oauth_token_env if c.auth == "subscription" else c.api_key_env
-    check(f"claude auth ({c.auth})", bool(os.environ.get(env)), f"${env}")
-    x = cfg.agents.codex
-    if x.auth == "subscription":
-        check("codex auth (subscription)", Path(os.path.expanduser(x.auth_json)).exists(), x.auth_json)
-    else:
-        check("codex auth (api_key)", bool(os.environ.get(x.api_key_env)), f"${x.api_key_env}")
+    from harness.sweep import agent_auth
+
+    for kind in AgentKind:
+        ok, where = agent_auth(cfg, kind)
+        check(f"{kind} auth ({getattr(cfg.agents, kind.value).auth})", ok, where)
     check("github app", cfg.github.enabled, "local-only runs" if not cfg.github.enabled else str(cfg.github.app_id))
     cl = cfg.cloud
     check("cloud login", bool((cl.token_env and os.environ.get(cl.token_env)) or cl.config_dir),
@@ -407,3 +408,140 @@ def github_mirror(name: str, config: ConfigOpt = None, pack: PackOpt = None) -> 
 
 if __name__ == "__main__":
     app()
+
+
+# --- sweep ----------------------------------------------------------------------------------
+
+
+class CloudMode(StrEnum):
+    on = "on"
+    off = "off"
+    both = "both"
+
+
+@sweep_app.command("run")
+def sweep_run(
+    name: Annotated[str, typer.Argument(help="Sweep name; run it again to resume")],
+    repo: Annotated[list[str] | None, typer.Option(help="Repeatable (default: every pinned corpus repo)")] = None,
+    bundle: Annotated[list[str] | None, typer.Option(help="Repeatable (default: every bundle)")] = None,
+    agent: Annotated[list[AgentKind] | None, typer.Option(help="Repeatable (default: every agent)")] = None,
+    tool_version: Annotated[list[str] | None, typer.Option(help="Repeatable (default: installed)")] = None,
+    cloud: Annotated[CloudMode | None, typer.Option(help="on, off or both (default: on)")] = None,
+    reps: Annotated[int | None, typer.Option(help="Runs per cell (default: 1)")] = None,
+    model: Annotated[str | None, typer.Option(help="Model for every agent (default: from config)")] = None,
+    retries: Annotated[int | None, typer.Option(help="Scripted retries (default from config)")] = None,
+    referee: Annotated[bool | None, typer.Option("--referee/--no-referee")] = None,
+    max_attempts: Annotated[int, typer.Option(help="Tries per cell on harness failures")] = 2,
+    max_consecutive_failures: Annotated[int, typer.Option(help="Stop after this many harness failures in a row")] = 3,
+    allow_drift: Annotated[bool, typer.Option(help="Resume even if bundles or the tool version changed")] = False,
+    dry_run: Annotated[bool, typer.Option(help="Print the cells and checks, run nothing")] = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Don't ask before creating the sweep")] = False,
+    config: ConfigOpt = None,
+    pack: PackOpt = None,
+) -> None:
+    """Run every cell of a grid, saving as it goes. The same command resumes it."""
+    from harness.sweep import Sweep, SweepError, build_plan
+
+    cfg, p = _ctx(config, pack)
+    log = lambda m: typer.echo(m, err=True)  # noqa: E731
+    sw = Sweep(cfg, p, name, log=log)
+    grid_flags = any(v is not None for v in (repo, bundle, agent, tool_version, cloud, reps, model,
+                                              retries, referee))
+    try:
+        new = None
+        if grid_flags or not sw.exists:
+            modes = {"on": [True], "off": [False], "both": [True, False]}[(cloud or CloudMode.on).value]
+            new = build_plan(cfg, p, name, repos=repo, bundles=bundle, agents=agent,
+                             tool_versions=tool_version, cloud=modes, reps=reps or 1, model=model,
+                             retries=retries, referee=True if referee is None else referee)
+        if sw.exists:
+            plan = sw.load()
+            if new and new.grid() != plan.grid():
+                raise SweepError(f"sweep {name} exists with a different grid; run "
+                                 f"`harness sweep run {name}` with no grid flags to resume it, "
+                                 "or pick a new name")
+            creating = False
+        else:
+            plan, creating = new, True
+
+        done = sum(s.state != "pending" for s in sw.status(plan, max_attempts=max_attempts))
+        typer.echo(f"sweep {name}: {len(plan.cells)} cells, {done} finished, "
+                   f"{len(plan.cells) - done} to run", err=True)
+        blocking = sw.preflight(plan)
+        drift = [] if creating else sw.drift(plan)
+        for prob in blocking + drift:
+            typer.echo(f"XX {prob}", err=True)
+        if drift and not allow_drift:
+            typer.echo("(--allow-drift resumes anyway)", err=True)
+            blocking += drift
+        if dry_run:
+            for c in plan.cells:
+                typer.echo(c.key)
+            raise typer.Exit(1 if blocking else 0)
+        if blocking:
+            raise typer.Exit(1)
+        if creating:
+            if not yes:
+                typer.confirm(f"create sweep {name} and start {len(plan.cells)} runs?", abort=True)
+            sw.save(plan)
+        final = sw.run(plan, max_attempts=max_attempts, allow_drift=allow_drift,
+                       max_consecutive_failures=max_consecutive_failures)
+    except SweepError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1) from None
+    except KeyboardInterrupt:
+        typer.echo(f"\ninterrupted; resume with `harness sweep run {name}`", err=True)
+        raise typer.Exit(130) from None
+    _sweep_summary(final)
+    if any(s.state != "done" for s in final):
+        raise typer.Exit(1)
+
+
+def _sweep_summary(statuses) -> None:
+    from collections import Counter
+
+    counts = Counter(s.state.value for s in statuses)
+    typer.echo(", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+
+
+@sweep_app.command("status")
+def sweep_status(
+    name: str,
+    max_attempts: Annotated[int, typer.Option(help="Tries per cell on harness failures")] = 2,
+    config: ConfigOpt = None,
+    pack: PackOpt = None,
+) -> None:
+    """Each cell's state and runs."""
+    from harness.analysis import passed as run_passed
+    from harness.bundle import find_bundle
+    from harness.sweep import Sweep, SweepError
+
+    cfg, p = _ctx(config, pack)
+    sw = Sweep(cfg, p, name)
+    try:
+        plan = sw.load()
+    except SweepError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1) from None
+    statuses = sw.status(plan, max_attempts=max_attempts)
+    width = max(len(s.cell.key) for s in statuses)
+    for s in statuses:
+        last = s.runs[-1] if s.runs else None
+        passed = None
+        if last and last.status == "completed":
+            b = find_bundle(cfg.runs, last.run_id)
+            passed = run_passed(last, b.read_json("git_state.json") or {})
+        typer.echo(f"{s.cell.key:{width}}  {s.state:8}  runs={len(s.runs)}  "
+                   f"passed={'-' if passed is None else passed}  {last.run_id if last else ''}")
+    for prob in sw.drift(plan):
+        typer.echo(f"XX {prob}", err=True)
+    _sweep_summary(statuses)
+
+
+@sweep_app.command("list")
+def sweep_list(config: ConfigOpt = None) -> None:
+    """Named sweeps."""
+    from harness.sweep import list_sweeps
+
+    for name in list_sweeps(load_config(config)):
+        typer.echo(name)

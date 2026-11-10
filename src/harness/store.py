@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS runs (
     tool_version VARCHAR, cloud BOOLEAN, status VARCHAR, slot VARCHAR, repo_sha VARCHAR,
     started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ, passed BOOLEAN, verify_attempts INTEGER,
     retries_needed INTEGER, cost_usd DOUBLE, duration_s DOUBLE, turns INTEGER,
-    pushed BOOLEAN, versions JSON, path VARCHAR
+    pushed BOOLEAN, versions JSON, path VARCHAR, sweep VARCHAR
 );
 CREATE TABLE IF NOT EXISTS facts (run_id VARCHAR, key VARCHAR, value JSON, detail VARCHAR);
 CREATE TABLE IF NOT EXISTS scores (
@@ -45,6 +45,11 @@ CREATE TABLE IF NOT EXISTS human_scores (
 CREATE TABLE IF NOT EXISTS sitemap (source VARCHAR, url VARCHAR);
 """
 
+# Columns added after a store may already exist. Append-only: ingest inserts by position.
+MIGRATIONS = """
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS sweep VARCHAR;
+"""
+
 PER_RUN_TABLES = ("runs", "facts", "scores", "findings", "issues", "docs", "human_scores")
 
 
@@ -53,6 +58,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.con = duckdb.connect(str(path))
         self.con.execute(SCHEMA)
+        self.con.execute(MIGRATIONS)
 
     def __enter__(self) -> Store:
         return self
@@ -68,7 +74,7 @@ class Store:
             self.con.execute(f"DELETE FROM {t} WHERE run_id = ?", [rid])
         facts = {f.key: f.value for f in load_facts(bundle)}
         self.con.execute(
-            "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 rid, meta.spec.pack, meta.spec.repo, meta.spec.bundle, meta.bundle_version,
                 meta.bundle_hash, meta.spec.agent.value, meta.spec.model,
@@ -77,7 +83,7 @@ class Store:
                 facts.get("passed"), facts.get("verify.attempts"),
                 facts.get("retries_needed"), facts.get("cost_usd"), facts.get("duration_s"),
                 facts.get("turns"), facts.get("pushed"), json.dumps(meta.versions),
-                str(bundle.path),
+                str(bundle.path), meta.spec.sweep,
             ],
         )
         for f in load_facts(bundle):
