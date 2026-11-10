@@ -233,6 +233,9 @@ class Runner:
         adapter = get_adapter(meta.spec.agent)
         agent_cfg = getattr(self.config.agents, meta.spec.agent.value)
         adapter.setup_home(home, variant, agent_cfg)
+        if variant.spec.project_skills_dir:
+            # Empty and untracked: it shows up only for tools that look for it.
+            (workdir / adapter.project_skills_dir).mkdir(parents=True, exist_ok=True)
         self._agent_env = {**env, **adapter.auth_env(home, agent_cfg)}
         self._agent_cfg = agent_cfg.model_dump()
         self._mcp = variant.spec.mcp

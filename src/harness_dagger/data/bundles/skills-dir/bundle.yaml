@@ -1,0 +1,8 @@
+# The repo already has an (empty) project-level skills directory for the running agent:
+# .claude/skills for Claude Code, .agents/skills for Codex. Dagger (v1.0.0-beta.27+) then
+# recommends its official skill module (dagger.io/skill), which `dagger generate` writes into
+# that directory. Nothing else is given: no instructions, skills, MCP, or docs pointers.
+name: skills-dir
+version: "1"
+description: Empty project skills dir, so Dagger can offer its own agent skill; no other help.
+project_skills_dir: true

@@ -77,6 +77,7 @@ class RawWriter:
 
 class AgentAdapter(Protocol):
     kind: AgentKind
+    project_skills_dir: str  # repo-relative directory the agent loads project skills from
 
     def setup_home(self, home: Path, variant: ResolvedBundle, cfg: Any) -> None:
         """Write the variant bundle (instructions, skills, MCP) into the fresh config dir."""

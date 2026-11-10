@@ -97,7 +97,17 @@ instructions: instructions.md   # becomes user-level CLAUDE.md / AGENTS.md
 skills_dir: skills              # skills/<skill>/SKILL.md
 mcp: {}                         # name -> MCP server config
 docs_pointers: []               # appended to the instructions
+project_skills_dir: false       # create the agent's empty repo-level skills dir
+                                # (.claude/skills or .agents/skills) before the run
 ```
+
+Built-in variants: `baseline` (no help), `docs-pointers` (docs links), and `skills-dir`
+(an empty project skills dir, which makes Dagger v1.0.0-beta.27+ recommend its own agent
+skill, `dagger.io/skill`). Every run is judged on two separate steps:
+`dagger.skill_module_installed` (the module is in `dagger.toml`) and
+`dagger.skill_installed` (`dagger generate` wrote `<skills dir>/dagger/SKILL.md`). Both land
+in the scorecard verdicts with a combined `skill_adoption` of `installed`, `module_only`,
+`skill_only`, or `not_installed`.
 
 Bump `version` whenever the content changes. Runs record the version and a content hash.
 The bundle's name and distinctive lines are redacted from everything the referee sees.

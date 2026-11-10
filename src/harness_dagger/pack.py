@@ -9,10 +9,13 @@ from typing import Any
 from harness.models import Fact, Score
 from harness.pack import BasePack
 from harness_dagger.analyzers import (
+    SKILL_MARKER,
+    SKILLS_DIRS,
     CIChoiceAnalyzer,
     CommandAnalyzer,
     FidelityAnalyzer,
     ModuleStrategyAnalyzer,
+    SkillAnalyzer,
 )
 from harness_dagger.common import dagger
 from harness_dagger.environment import DaggerEnvironment, installed_version
@@ -40,7 +43,7 @@ class DaggerPack(BasePack):
     name = "dagger"
     report_facts = [
         "dagger.module_strategy", "dagger.ci_choice", "dagger.bonus_coverage",
-        "integration.cloud_checks.green",
+        "integration.cloud_checks.green", "dagger.skill_module_installed", "dagger.skill_installed",
     ]
     version = "0.1.0"
     data_dir = DATA
@@ -56,6 +59,7 @@ class DaggerPack(BasePack):
             CIChoiceAnalyzer(),
             FidelityAnalyzer(),
             CommandAnalyzer(),
+            SkillAnalyzer(),
         ]
         self.integrations = [CloudChecks(settings)]
 
@@ -69,6 +73,9 @@ class DaggerPack(BasePack):
             ".gitlab-ci.yml",
             "Jenkinsfile",
             ".env.dagger*",
+            # Just the dagger skill's ownership marker, so SkillAnalyzer sees a generated
+            # skill even in a gitignored skills dir; the skill content stays out.
+            *(f"{d}/dagger/{SKILL_MARKER}" for d in SKILLS_DIRS),
         ]
 
     def capture_coverage(self, workdir: Path, env: dict[str, str]) -> tuple[list[str], str]:
@@ -117,4 +124,7 @@ class DaggerPack(BasePack):
             "module_strategy_source": source,
             "decorative_modules": f.get("dagger.decorative_modules", []),
             "ci_choice": f.get("dagger.ci_choice"),
+            "skill_module_installed": f.get("dagger.skill_module_installed", False),
+            "skill_installed": f.get("dagger.skill_installed", False),
+            "skill_adoption": f.get("dagger.skill_adoption", "not_installed"),
         }

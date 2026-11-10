@@ -77,7 +77,7 @@ def redactor_for(bundle: RunBundle, rubric: Rubric) -> Redactor:
     return Redactor(literals, rubric.redaction_patterns, paths)
 
 
-_BUNDLE_PATH_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
+_BUNDLE_PATH_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.agents/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
 
 
 def render_events(events: list[Event], redact: Redactor, max_chars: int) -> str:

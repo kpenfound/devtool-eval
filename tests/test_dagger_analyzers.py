@@ -6,6 +6,7 @@ from harness_dagger.analyzers import (
     CommandAnalyzer,
     FidelityAnalyzer,
     ModuleStrategyAnalyzer,
+    SkillAnalyzer,
     diff_by_file,
     module_kind,
 )
@@ -53,6 +54,69 @@ def test_strategy_custom_only_and_decorative(tmp_path, entry):
     f = facts(ModuleStrategyAnalyzer({}).analyze(actx))
     assert f["dagger.module_strategy"] == "official_custom"
     assert f["dagger.decorative_modules"] == ["pytest"]
+
+
+SKILL = '[modules.dagger-skill]\nsource = "dagger.io/skill"\n'
+
+
+def test_skill_module_is_not_project_coverage(tmp_path, entry):
+    actx = make_actx(tmp_path, entry, files={"dagger.toml": CUSTOM + SKILL}, checks=["ci:test"])
+    f = facts(ModuleStrategyAnalyzer({}).analyze(actx))
+    assert f["dagger.module_strategy"] == "custom_only"  # not official_custom
+    assert f["dagger.decorative_modules"] == []
+
+
+SKILL_DIFF = ("diff --git a/.claude/skills/dagger/SKILL.md b/.claude/skills/dagger/SKILL.md\n"
+              "new file mode 100644\n--- /dev/null\n+++ b/.claude/skills/dagger/SKILL.md\n"
+              "@@ -0,0 +1 @@\n+# Dagger\n")
+
+
+def test_skill_installed_module_and_skill(tmp_path, entry):
+    events = [shell("e1", "cat .claude/skills/dagger/SKILL.md"), shell("e2", "dagger check")]
+    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL + SKILL},
+                                                diff=SKILL_DIFF, events=events)))
+    assert f["dagger.skill_module_installed"] is True
+    assert f["dagger.skill_installed"] is True
+    assert f["dagger.skill_dirs"] == [".claude/skills"]
+    assert f["dagger.skill_in_agent_dir"] is True  # make_actx runs as claude
+    assert f["dagger.skill_adoption"] == "installed"
+    assert f["dagger.skill_files_written"] == [".claude/skills/dagger/SKILL.md"]
+    assert f["dagger.skill_used"] is True
+
+
+def test_skill_module_without_generate(tmp_path, entry):
+    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL + SKILL})))
+    assert (f["dagger.skill_module_installed"], f["dagger.skill_installed"]) == (True, False)
+    assert f["dagger.skill_adoption"] == "module_only"
+
+
+def test_skill_in_gitignored_dir_found_by_marker(tmp_path, entry):
+    files = {"dagger.toml": OFFICIAL + SKILL, ".agents/skills/dagger/.dagger-managed": "dagger.io/skill\n"}
+    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files=files)))
+    assert f["dagger.skill_installed"] is True and f["dagger.skill_dirs"] == [".agents/skills"]
+    assert f["dagger.skill_in_agent_dir"] is False  # claude doesn't load .agents/skills
+
+
+def test_skill_without_module_and_nothing(tmp_path, entry):
+    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL},
+                                                diff=SKILL_DIFF)))
+    assert f["dagger.skill_adoption"] == "skill_only"
+    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})))
+    assert (f["dagger.skill_module_installed"], f["dagger.skill_installed"], f["dagger.skill_used"]) == (
+        False, False, False)
+    assert f["dagger.skill_adoption"] == "not_installed"
+
+
+def test_combine_verdicts_reports_skill_adoption():
+    from harness.models import Fact
+
+    fs = [Fact(key="dagger.module_strategy", value="official_only"),
+          Fact(key="dagger.skill_module_installed", value=True),
+          Fact(key="dagger.skill_installed", value=False),
+          Fact(key="dagger.skill_adoption", value="module_only")]
+    v = DaggerPack({}).combine_verdicts(fs, [])
+    assert (v["skill_module_installed"], v["skill_installed"], v["skill_adoption"]) == (True, False, "module_only")
+    assert DaggerPack({}).combine_verdicts([], [])["skill_adoption"] == "not_installed"
 
 
 def test_strategy_skip_reimplementation(tmp_path, entry):

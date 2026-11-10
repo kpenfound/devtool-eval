@@ -12,6 +12,16 @@ from harness.models import EvidenceRef, Fact
 from harness.pack import AnalysisContext
 
 OFFICIAL_PREFIXES = ("dagger.io/", "github.com/dagger/")
+# Official modules that serve the agent rather than the project: they generate files but
+# contribute no checks, so they don't count toward module strategy or decorative modules.
+AGENT_SKILL_MODULES = ("dagger.io/skill", "github.com/dagger/skill")
+SKILLS_DIRS = (".agents/skills", ".claude/skills", ".cursor/skills", ".gemini/skills",
+               ".github/skills", ".opencode/skills")
+
+
+def is_agent_skill_module(source: str) -> bool:
+    s = source.removeprefix("https://").split("@", 1)[0].rstrip("/")
+    return s in AGENT_SKILL_MODULES
 
 
 def module_kind(source: str, official_prefixes: tuple[str, ...] = OFFICIAL_PREFIXES) -> str:
@@ -91,6 +101,9 @@ class ModuleStrategyAnalyzer:
                 modules.append({"name": m.group(1), "source": f".dagger/modules/{m.group(1)}",
                                 "kind": "custom", "installed": False})
 
+        for m in modules:
+            if is_agent_skill_module(m["source"]):
+                m["kind"] = "agent_skill"
         kinds = {k: [m for m in modules if m["kind"] == k] for k in ("official", "custom", "third_party")}
         verify_passed = bool(actx.meta.final_verify and actx.meta.final_verify.passed)
         checks = actx.meta.final_verify.checks if actx.meta.final_verify else []
@@ -98,7 +111,8 @@ class ModuleStrategyAnalyzer:
 
         skip_official = [(k, v) for k, v in skips if any(k.startswith(f"modules.{m['name']}.") for m in kinds["official"])]
         reimplementation = bool(skip_official and kinds["custom"])
-        decorative = [m["name"] for m in modules if m.get("installed", True) and m["name"] not in check_modules]
+        decorative = [m["name"] for m in modules if m.get("installed", True) and m["kind"] != "agent_skill"
+                      and m["name"] not in check_modules]
 
         if not verify_passed:
             strategy = "nothing_working"
@@ -304,4 +318,75 @@ class CommandAnalyzer:
             Fact(key="dagger.first_passing_check_event", value=first_ok_check.id if first_ok_check else None),
             Fact(key="dagger.used_module_recommend", value=bool(recommend)),
             Fact(key="dagger.install_commands", value=[e.command for e in installs][:20]),
+        ]
+
+
+# The skill module writes <skills dir>/dagger/ with this ownership marker beside SKILL.md.
+SKILL_MARKER = ".dagger-managed"
+# The project skills dir each agent loads (mirrors the adapters' project_skills_dir).
+AGENT_SKILLS_DIR = {"claude": ".claude/skills", "codex": ".agents/skills"}
+
+
+def skill_adoption(module_installed: bool, skill_installed: bool) -> str:
+    if module_installed and skill_installed:
+        return "installed"
+    if module_installed:
+        return "module_only"  # installed dagger.io/skill but never generated the skill
+    if skill_installed:
+        return "skill_only"  # skill files without the module (copied or hand-written)
+    return "not_installed"
+
+
+class SkillAnalyzer:
+    """Whether the agent took up Dagger's own agent skill, in two steps: the module
+    (``dagger.io/skill`` in dagger.toml) and the skill itself (``dagger generate`` writing
+    ``<skills dir>/dagger/SKILL.md``).
+
+    Meaningful mainly for variants that give the repo a project skills directory, which is
+    what makes ``dagger module recommend`` offer the skill module.
+    """
+
+    name = "dagger.skill"
+
+    def analyze(self, actx: AnalysisContext) -> list[Fact]:
+        module_installed = False
+        toml_text = actx.final_files.get("dagger.toml")
+        if toml_text:
+            try:
+                mods = tomllib.loads(toml_text).get("modules") or {}
+            except tomllib.TOMLDecodeError:
+                mods = {}
+            module_installed = any(
+                is_agent_skill_module(m.get("source", "") if isinstance(m, dict) else str(m))
+                for m in mods.values())
+        files = diff_by_file(actx.diff)
+        written = sorted(p for p, f in files.items()
+                         if f["status"] != "deleted" and p.startswith(tuple(d + "/" for d in SKILLS_DIRS)))
+        # Installed = SKILL.md generated under a skills dir. The snapshotted marker covers
+        # skills dirs the repo gitignores (which the diff can't see).
+        dirs = {d for d in SKILLS_DIRS if f"{d}/dagger/SKILL.md" in written}
+        dirs |= {d for d in SKILLS_DIRS
+                 if is_agent_skill_module(actx.final_files.get(f"{d}/dagger/{SKILL_MARKER}", "").strip())}
+        skill_dirs = sorted(dirs)
+        agent_dir = AGENT_SKILLS_DIR.get(str(actx.meta.spec.agent))
+        skill_marker = tuple(f"{d}/dagger/" for d in SKILLS_DIRS)
+        reads = [ev for ev in actx.events if ev.kind != EventKind.system and (
+            any(m in p for p in ev.paths for m in skill_marker)
+            or (ev.command and any(m in ev.command for m in skill_marker)))]
+        return [
+            Fact(key="dagger.skill_module_installed", value=module_installed,
+                 detail="dagger.io/skill in dagger.toml",
+                 evidence=[EvidenceRef(path="dagger.toml", line=_line_of(toml_text or "", "dagger.io/skill"))]
+                 if module_installed else []),
+            Fact(key="dagger.skill_installed", value=bool(skill_dirs),
+                 detail="the dagger skill was generated into a project skills dir",
+                 evidence=[EvidenceRef(path=f"{d}/dagger/SKILL.md") for d in skill_dirs]),
+            Fact(key="dagger.skill_dirs", value=skill_dirs),
+            Fact(key="dagger.skill_in_agent_dir", value=agent_dir in skill_dirs if agent_dir else None,
+                 detail=f"generated into {agent_dir}, where this agent loads project skills"),
+            Fact(key="dagger.skill_adoption", value=skill_adoption(module_installed, bool(skill_dirs))),
+            Fact(key="dagger.skill_files_written", value=written),
+            Fact(key="dagger.skill_used", value=bool(reads),
+                 detail="read or ran something from a generated dagger skill",
+                 evidence=[EvidenceRef(event=e.id) for e in reads[:20]]),
         ]

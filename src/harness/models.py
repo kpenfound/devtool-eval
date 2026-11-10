@@ -78,6 +78,10 @@ class BundleSpec(BaseModel):
     skills_dir: str | None = None  # contains <skill>/SKILL.md
     mcp: dict[str, Any] = Field(default_factory=dict)  # name -> server config
     docs_pointers: list[str] = Field(default_factory=list)
+    # Create the agent's empty project-level skills directory (.claude/skills, .agents/skills)
+    # in the repo before the run, as a repo that already uses agent skills would have. Tools
+    # that install their own skill (Dagger's dagger.io/skill) only offer to when it exists.
+    project_skills_dir: bool = False
 
 
 class ResolvedBundle(BaseModel):

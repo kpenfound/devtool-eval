@@ -46,6 +46,7 @@ def _last_refresh(path: Path) -> datetime:
 
 class CodexAdapter:
     kind = AgentKind.codex
+    project_skills_dir = ".agents/skills"
 
     def setup_home(self, home: Path, variant: ResolvedBundle, cfg: CodexAgentConfig) -> None:
         codex_home = home / ".codex"

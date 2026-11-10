@@ -19,7 +19,7 @@ from harness.models import DocVisit
 from harness.pack import DocsSource
 
 URL_RE = re.compile(r"https?://[^\s'\"<>)\]]+")
-LOCAL_DOC_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
+LOCAL_DOC_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.agents/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
 
 
 def classify(url: str, sources: list[DocsSource]) -> tuple[str, str | None]:

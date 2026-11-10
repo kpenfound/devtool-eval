@@ -142,6 +142,34 @@ def test_full_loop(tmp_path, upstream, monkeypatch):
     assert len(list_bundles(config.runs)) == 1
 
 
+@pytest.mark.parametrize(("agent", "skills_dir"), [("claude", ".claude/skills"), ("codex", ".agents/skills")])
+def test_skills_dir_bundle_creates_project_skills_dir(tmp_path, upstream, monkeypatch, agent, skills_dir):
+    config = HarnessConfig(state_dir=str(tmp_path / "state"), retries=0)
+    config.agents.codex.auth = "api_key"
+    pack = DaggerPack({})
+    pack.environment = StubEnv()
+    pack.verifier = StubVerifier()
+    monkeypatch.setattr(pack, "corpus", lambda: {"toy": upstream})
+    seen = {}
+
+    def spy(inv):
+        seen.setdefault(inv.phase, (Path(inv.workdir) / skills_dir).is_dir())
+        return fake_invocation(inv)
+
+    monkeypatch.setattr(runner_mod, "run_invocation", spy)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "test-token")
+    monkeypatch.setenv(config.agents.codex.api_key_env, "test-key")
+    monkeypatch.setattr(backends, "complete", lambda *a: json.dumps({
+        "scores": [], "ci_gaps": [], "friction": [], "claims": [], "issue_candidates": []}))
+    runner = runner_mod.Runner(config, pack, log=lambda m: None)
+    bundle = runner.run(RunSpec(repo="toy", bundle="skills-dir", agent=agent, cloud=False))
+    assert bundle.meta().status == "completed", bundle.meta().error
+    assert seen["task"] is True
+    seen.clear()
+    runner.run(RunSpec(repo="toy", bundle="baseline", agent=agent, cloud=False))
+    assert seen["task"] is False
+
+
 def test_crash_recovery(tmp_path, upstream, monkeypatch):
     config = HarnessConfig(state_dir=str(tmp_path / "state"))
     pack = DaggerPack({})

@@ -25,6 +25,7 @@ from harness.models import AgentKind, AgentTurnResult, ResolvedBundle
 
 class ClaudeAdapter:
     kind = AgentKind.claude
+    project_skills_dir = ".claude/skills"
 
     def setup_home(self, home: Path, variant: ResolvedBundle, cfg: ClaudeAgentConfig) -> None:
         config_dir = home / ".claude"
