@@ -88,7 +88,16 @@ class Repo:
         return self._paged("/pulls", state="open")
 
     def close_pr(self, number: int) -> None:
-        self.client.patch(f"/pulls/{number}", json={"state": "closed"}).raise_for_status()
+        """Close a PR; already closed is fine. GitHub can close one itself between our listing
+        and this call (e.g. Dependabot closing its PR once a force-push removed its manifest),
+        and then the PATCH answers 422."""
+        r = self.client.patch(f"/pulls/{number}", json={"state": "closed"})
+        if r.status_code == 422:
+            current = self.client.get(f"/pulls/{number}")
+            if current.is_success and current.json().get("state") == "closed":
+                return
+            raise RuntimeError(f"closing PR #{number} in {self.full_name}: 422 {r.text[:500]}")
+        r.raise_for_status()
 
     def branches(self) -> list[str]:
         return [b["name"] for b in self._paged("/branches")]
