@@ -162,7 +162,11 @@ class HarnessConfig(BaseModel):
 
     @property
     def db(self) -> Path:
-        return Path(os.path.expanduser(self.db_path)) if self.db_path else self.state / "harness.duckdb"
+        return (
+            Path(os.path.expanduser(self.db_path))
+            if self.db_path
+            else self.state / "harness.duckdb"
+        )
 
     def pack_settings(self, pack: str) -> dict:
         return self.packs.get(pack, {})

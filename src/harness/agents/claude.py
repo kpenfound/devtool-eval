@@ -135,9 +135,7 @@ class ClaudeAdapter:
                 if msg.total_cost_usd is not None:
                     result.cost_usd = msg.total_cost_usd - prior_cost
                 result.stop_reason = msg.terminal_reason or msg.subtype
-                result.tokens = {
-                    k: v for k, v in (msg.usage or {}).items() if isinstance(v, int)
-                }
+                result.tokens = {k: v for k, v in (msg.usage or {}).items() if isinstance(v, int)}
                 if msg.structured_output is not None:
                     result.final_text = json.dumps(msg.structured_output)
                 else:

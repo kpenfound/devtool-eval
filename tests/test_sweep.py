@@ -31,8 +31,15 @@ def setup(tmp_path, upstream, monkeypatch):  # noqa: F811
 
 
 def plan_for(config, pack, name="s1", **kw):
-    args = dict(repos=None, bundles=["baseline", "docs-pointers"], agents=[AgentKind.claude],
-                tool_versions=None, cloud=[False], reps=1, referee=False)
+    args = dict(
+        repos=None,
+        bundles=["baseline", "docs-pointers"],
+        agents=[AgentKind.claude],
+        tool_versions=None,
+        cloud=[False],
+        reps=1,
+        referee=False,
+    )
     return build_plan(config, pack, name, **{**args, **kw})
 
 
@@ -98,7 +105,8 @@ def test_gives_up_and_stops_on_repeated_failures(setup, monkeypatch):
 
     with pytest.raises(SweepError, match="in a row"):
         Sweep(config, pack, "s2", log=lambda m: None).run(
-            plan_for(config, pack, name="s2"), max_consecutive_failures=1)
+            plan_for(config, pack, name="s2"), max_consecutive_failures=1
+        )
 
 
 def test_crashed_run_counts_as_an_attempt(setup):

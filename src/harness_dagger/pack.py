@@ -42,8 +42,12 @@ STRATEGY_VERDICT = {
 class DaggerPack(BasePack):
     name = "dagger"
     report_facts = [
-        "dagger.module_strategy", "dagger.ci_choice", "dagger.bonus_coverage",
-        "integration.cloud_checks.green", "dagger.skill_module_installed", "dagger.skill_installed",
+        "dagger.module_strategy",
+        "dagger.ci_choice",
+        "dagger.bonus_coverage",
+        "integration.cloud_checks.green",
+        "dagger.skill_module_installed",
+        "dagger.skill_installed",
     ]
     version = "0.1.0"
     data_dir = DATA
@@ -91,8 +95,11 @@ class DaggerPack(BasePack):
         if p.returncode:
             raise RuntimeError(f"dagger module recommend failed:\n{raw[-3000:]}")
         sources = sorted(set(RECOMMEND_RE.findall(raw)))
-        found = [line.split("|", 1)[1].strip() for line in raw.splitlines()
-                 if "|" in line and ": found " in line]
+        found = [
+            line.split("|", 1)[1].strip()
+            for line in raw.splitlines()
+            if "|" in line and ": found " in line
+        ]
         return sources, f"dagger {version} module recommend\n" + "\n".join(found)
 
     def coverage_in_ci(self, module: str, ci_text: str) -> bool | None:

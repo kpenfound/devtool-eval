@@ -19,7 +19,13 @@ from harness.models import DocVisit
 from harness.pack import DocsSource
 
 URL_RE = re.compile(r"https?://[^\s'\"<>)\]]+")
-LOCAL_DOC_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.agents/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
+LOCAL_DOC_MARKERS = (
+    "/.claude/skills/",
+    "/.codex/skills/",
+    "/.agents/skills/",
+    "/.claude/CLAUDE.md",
+    "/.codex/AGENTS.md",
+)
 
 
 def classify(url: str, sources: list[DocsSource]) -> tuple[str, str | None]:
@@ -53,20 +59,28 @@ def _urls(ev: Event) -> Iterable[str]:
                 yield from URL_RE.findall(v)
 
 
-def build(events: list[Event], sources: list[DocsSource], outcome_command: str | None) -> list[DocVisit]:
+def build(
+    events: list[Event], sources: list[DocsSource], outcome_command: str | None
+) -> list[DocVisit]:
     visits: list[DocVisit] = []
     for i, ev in enumerate(events):
         found: list[DocVisit] = []
         for url in _urls(ev):
             url = url.rstrip(".,;\\")
             name, version = classify(url, sources)
-            found.append(DocVisit(event=ev.id, url=url, source=name, doc_version=version, kind="fetch"))
+            found.append(
+                DocVisit(event=ev.id, url=url, source=name, doc_version=version, kind="fetch")
+            )
         if ev.kind == EventKind.web_search and not ev.url and (ev.query or "").strip():
-            found.append(DocVisit(event=ev.id, url=f"search:{ev.query}", source="search", kind="search"))
+            found.append(
+                DocVisit(event=ev.id, url=f"search:{ev.query}", source="search", kind="search")
+            )
         if ev.kind == EventKind.file_read:
             for p in ev.paths:
                 if any(m in p for m in LOCAL_DOC_MARKERS):
-                    found.append(DocVisit(event=ev.id, url=f"file:{p}", source="local", kind="local"))
+                    found.append(
+                        DocVisit(event=ev.id, url=f"file:{p}", source="local", kind="local")
+                    )
         if not found:
             continue
         outcome, outcome_ev = _outcome(events[i + 1 :], outcome_command)

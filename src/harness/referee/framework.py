@@ -77,7 +77,13 @@ def redactor_for(bundle: RunBundle, rubric: Rubric) -> Redactor:
     return Redactor(literals, rubric.redaction_patterns, paths)
 
 
-_BUNDLE_PATH_MARKERS = ("/.claude/skills/", "/.codex/skills/", "/.agents/skills/", "/.claude/CLAUDE.md", "/.codex/AGENTS.md")
+_BUNDLE_PATH_MARKERS = (
+    "/.claude/skills/",
+    "/.codex/skills/",
+    "/.agents/skills/",
+    "/.claude/CLAUDE.md",
+    "/.codex/AGENTS.md",
+)
 
 
 def render_events(events: list[Event], redact: Redactor, max_chars: int) -> str:
@@ -127,7 +133,9 @@ def referee_diff(diff: str) -> str:
         if m:
             parts = Path(m.group(2)).parts
             if SNAPSHOT_SKIP_DIRS & set(parts[:-1]) or parts[-1] in SNAPSHOT_SKIP_FILES:
-                out.append(f"diff --git a/{m.group(1)} b/{m.group(2)}\n(generated or vendored file: {section.count(chr(10))} diff lines omitted)\n")
+                out.append(
+                    f"diff --git a/{m.group(1)} b/{m.group(2)}\n(generated or vendored file: {section.count(chr(10))} diff lines omitted)\n"
+                )
                 continue
         out.append(section)
     return "".join(out)
@@ -160,7 +168,11 @@ def output_schema(rubric: Rubric) -> dict[str, Any]:
     }
     finding = {
         "type": "object",
-        "properties": {"summary": {"type": "string"}, "detail": {"type": "string"}, "evidence": evidence},
+        "properties": {
+            "summary": {"type": "string"},
+            "detail": {"type": "string"},
+            "evidence": evidence,
+        },
         "required": ["summary", "evidence"],
     }
     return {
@@ -211,7 +223,10 @@ def output_schema(rubric: Rubric) -> dict[str, Any]:
                     "type": "object",
                     "properties": {
                         "claim": {"type": "string"},
-                        "verdict": {"type": "string", "enum": ["confirmed", "refuted", "unverifiable"]},
+                        "verdict": {
+                            "type": "string",
+                            "enum": ["confirmed", "refuted", "unverifiable"],
+                        },
                         "evidence": evidence,
                     },
                     "required": ["claim", "verdict", "evidence"],
@@ -248,19 +263,27 @@ purpose.
 Return a single JSON object matching the provided schema."""
 
 
-def build_prompt(actx: AnalysisContext, bundle: RunBundle, pack: ToolPack, config: HarnessConfig,
-                 rubric: Rubric) -> tuple[str, set[str], dict[str, int]]:
+def build_prompt(
+    actx: AnalysisContext, bundle: RunBundle, pack: ToolPack, config: HarnessConfig, rubric: Rubric
+) -> tuple[str, set[str], dict[str, int]]:
     redact = redactor_for(bundle, rubric)
     facts = load_facts(bundle)
     entry = actx.entry
     criteria = []
     for c in rubric.criteria:
-        anchors = "\n".join(f"    {k}: {v}" for k, v in sorted(c.anchors.items())) or "    (anchors TBD: use 1=bad, 2=weak, 3=good, 4=excellent)"
-        criteria.append(f"- id: {c.id}\n  name: {c.name}\n  question: {c.question}\n  guidance: {c.guidance}\n  anchors:\n{anchors}")
+        anchors = (
+            "\n".join(f"    {k}: {v}" for k, v in sorted(c.anchors.items()))
+            or "    (anchors TBD: use 1=bad, 2=weak, 3=good, 4=excellent)"
+        )
+        criteria.append(
+            f"- id: {c.id}\n  name: {c.name}\n  question: {c.question}\n  guidance: {c.guidance}\n  anchors:\n{anchors}"
+        )
     ci = []
     for job in entry.ci:
         scope = f"OUT OF SCOPE ({job.out_of_scope})" if job.out_of_scope else "in scope"
-        partial = "; ".join(f"{p.match} out of scope ({p.reason})" for p in job.partial_out_of_scope)
+        partial = "; ".join(
+            f"{p.match} out of scope ({p.reason})" for p in job.partial_out_of_scope
+        )
         ci.append(f"- {job.workflow} :: {job.job} [{scope}] {job.summary} {partial}".rstrip())
     verify_tail = ""
     log = bundle.file("verify.log")
@@ -346,7 +369,9 @@ Bonus coverage (dev tools the CI doesn't run; credit, not required): \
     return prompt, valid_events, valid_files
 
 
-def check_evidence(refs: list[dict] | None, events: set[str], files: dict[str, int]) -> tuple[list[EvidenceRef], list[str]]:
+def check_evidence(
+    refs: list[dict] | None, events: set[str], files: dict[str, int]
+) -> tuple[list[EvidenceRef], list[str]]:
     good, bad = [], []
     for raw in refs or []:
         try:
@@ -382,7 +407,9 @@ def similar(a: str, b: str) -> bool:
     return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio() >= 0.75
 
 
-def enforce(raw: RefereeOutput, rubric: Rubric, events: set[str], files: dict[str, int], card: Scorecard) -> None:
+def enforce(
+    raw: RefereeOutput, rubric: Rubric, events: set[str], files: dict[str, int], card: Scorecard
+) -> None:
     criteria = {c.id for c in rubric.criteria}
 
     def take(section: str, items: list[dict], build):
@@ -391,7 +418,9 @@ def enforce(raw: RefereeOutput, rubric: Rubric, events: set[str], files: dict[st
             good, bad = check_evidence(item.get("evidence"), events, files)
             if not good:
                 card.rejected.append(
-                    Rejected(section=section, item=item, reason="no valid evidence: " + "; ".join(bad))
+                    Rejected(
+                        section=section, item=item, reason="no valid evidence: " + "; ".join(bad)
+                    )
                 )
                 continue
             try:
@@ -405,16 +434,24 @@ def enforce(raw: RefereeOutput, rubric: Rubric, events: set[str], files: dict[st
             raise ValueError(f"unknown criterion {item['criterion']}")
         if not 1 <= int(item["score"]) <= 4:
             raise ValueError("score out of range")
-        return Score(criterion=item["criterion"], score=int(item["score"]),
-                     rationale=item.get("rationale", ""), evidence=ev)
+        return Score(
+            criterion=item["criterion"],
+            score=int(item["score"]),
+            rationale=item.get("rationale", ""),
+            evidence=ev,
+        )
 
     def finding(item, ev):
         return Finding(summary=item["summary"], detail=item.get("detail", ""), evidence=ev)
 
     def issue(item, ev):
         cat = item.get("category") or "other"
-        cand = IssueCandidate(title=item["title"], body=item["body"], evidence=ev,
-                              category=cat if cat in {r.value for r in RootCause} else "other")
+        cand = IssueCandidate(
+            title=item["title"],
+            body=item["body"],
+            evidence=ev,
+            category=cat if cat in {r.value for r in RootCause} else "other",
+        )
         cand.fingerprint = fingerprint(cand.title, str(cand.category))
         return cand
 
@@ -422,16 +459,28 @@ def enforce(raw: RefereeOutput, rubric: Rubric, events: set[str], files: dict[st
     seen: set[str] = set()
     for s in scores:  # one score per criterion; keep the first
         if s.criterion in seen:
-            card.rejected.append(Rejected(section="scores", item=s.model_dump(mode="json"), reason="duplicate criterion"))
+            card.rejected.append(
+                Rejected(
+                    section="scores", item=s.model_dump(mode="json"), reason="duplicate criterion"
+                )
+            )
             continue
         seen.add(s.criterion)
         card.scores.append(s)
     card.ci_gaps = take("ci_gaps", raw.ci_gaps, finding)
-    card.friction = take("friction", raw.friction, lambda i, ev: Friction(summary=i["summary"], root_cause=i["root_cause"], evidence=ev))
+    card.friction = take(
+        "friction",
+        raw.friction,
+        lambda i, ev: Friction(summary=i["summary"], root_cause=i["root_cause"], evidence=ev),
+    )
     card.hallucinated_apis = take("hallucinated_apis", raw.hallucinated_apis, finding)
     card.legacy_confusion = take("legacy_confusion", raw.legacy_confusion, finding)
     card.docs_judgments = take("docs_judgments", raw.docs_judgments, finding)
-    card.claims = take("claims", raw.claims, lambda i, ev: ClaimCheck(claim=i["claim"], verdict=i["verdict"], evidence=ev))
+    card.claims = take(
+        "claims",
+        raw.claims,
+        lambda i, ev: ClaimCheck(claim=i["claim"], verdict=i["verdict"], evidence=ev),
+    )
     card.issue_candidates = take("issue_candidates", raw.issue_candidates, issue)
 
 
@@ -447,8 +496,14 @@ class ScorecardExists(RuntimeError):
     pass
 
 
-def referee_bundle(bundle: RunBundle, pack: ToolPack, config: HarnessConfig, *, force: bool = False,
-                   dry_run: bool = False) -> Scorecard | str:
+def referee_bundle(
+    bundle: RunBundle,
+    pack: ToolPack,
+    config: HarnessConfig,
+    *,
+    force: bool = False,
+    dry_run: bool = False,
+) -> Scorecard | str:
     rubric = pack.rubric()
     existing = bundle.scorecard()
     if existing and not force:

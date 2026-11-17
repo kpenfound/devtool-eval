@@ -1,9 +1,15 @@
 """Per-run isolation on a shared host.
 
-Every run gets a fake HOME under its run directory, so agent memory, user-level
-instructions, gh/git credentials, and tool logins from the real account never leak in.
-``CLAUDE_CONFIG_DIR`` and ``CODEX_HOME`` live inside it. Only an allowlist of env vars is
-inherited from the harness process.
+Every run gets a fake HOME at ``<state>/homes/<random>/home`` (not in its run bundle, so
+agent-visible paths don't name the run or variant), so agent memory, user-level instructions,
+gh/git credentials, and tool logins from the real account never leak in. ``CLAUDE_CONFIG_DIR``
+and ``CODEX_HOME`` live inside it. Only an allowlist of env vars is inherited from the harness
+process.
+
+The HOME is scratch: when the run ends (or is recovered after a crash) the agent's session
+records are copied into the run bundle and ``<state>/homes/<random>/`` is deleted
+(``harness.homes``). Its passthrough entries and ``.cache/dagger`` are symlinks to the real
+HOME and the shared caches, so nothing may follow links when cleaning it up.
 """
 
 from __future__ import annotations
@@ -18,8 +24,9 @@ from harness.config import HarnessConfig
 
 
 def make_home(parent: Path, config: HarnessConfig) -> Path:
-    """A fresh HOME under ``parent``. Agent-visible paths must not name the run or variant,
-    so runs put it under ``<state>/homes/<random>`` rather than inside the run bundle."""
+    """A fresh HOME at ``parent/home``. Agent-visible paths must not name the run or variant,
+    so ``parent`` is ``<state>/homes/<random>`` (owned by a ``homes.HomeClaim`` taken before
+    this is called), never the run bundle. It is removed when the run ends."""
     home = parent / "home"
     home.mkdir(parents=True, exist_ok=True)
     real_home = Path.home()
@@ -44,7 +51,11 @@ def clean_path(path: str) -> str:
     """PATH without the harness's own venv (``uv run`` prepends it), which would also hand
     the agent the harness's python, pytest and ruff."""
     dirs = _harness_dirs()
-    keep = [d for d in path.split(os.pathsep) if d and not any(Path(d).resolve().is_relative_to(h) for h in dirs)]
+    keep = [
+        d
+        for d in path.split(os.pathsep)
+        if d and not any(Path(d).resolve().is_relative_to(h) for h in dirs)
+    ]
     return os.pathsep.join(keep)
 
 
@@ -71,7 +82,8 @@ def neutral_python(state: Path) -> str:
     rt = state / "runtime"
     (rt / "bin").mkdir(parents=True, exist_ok=True)
     cfg = "".join(
-        line for line in (venv / "pyvenv.cfg").read_text().splitlines(keepends=True)
+        line
+        for line in (venv / "pyvenv.cfg").read_text().splitlines(keepends=True)
         if not line.startswith("prompt")
     )
     cfg_path = rt / "pyvenv.cfg"
@@ -131,7 +143,7 @@ def base_env(home: Path, config: HarnessConfig, *, git_name: str, git_email: str
 
 def git_credential_env(token: str) -> dict[str, str]:
     """Git auth for github.com from a token, without writing it into any repo config."""
-    helper = "!f() { echo username=x-access-token; echo \"password=$GH_TOKEN\"; }; f"
+    helper = '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
     return {
         "GH_TOKEN": token,
         "GITHUB_TOKEN": token,

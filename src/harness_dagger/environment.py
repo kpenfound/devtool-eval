@@ -87,14 +87,24 @@ class DaggerEnvironment:
             return
         names = subprocess.run(
             ["docker", "ps", "-a", "--filter", "name=dagger-engine", "--format", "{{.Names}}"],
-            capture_output=True, text=True, env=ctx.env, check=False,
+            capture_output=True,
+            text=True,
+            env=ctx.env,
+            check=False,
         ).stdout.split()
         for name in names:
             if mode == "restart":
-                subprocess.run(["docker", "restart", name], env=ctx.env, capture_output=True, check=False)
+                subprocess.run(
+                    ["docker", "restart", name], env=ctx.env, capture_output=True, check=False
+                )
             else:
                 # -v drops the engine's anonymous cache volume with it.
-                subprocess.run(["docker", "rm", "-f", "-v", name], env=ctx.env, capture_output=True, check=False)
+                subprocess.run(
+                    ["docker", "rm", "-f", "-v", name],
+                    env=ctx.env,
+                    capture_output=True,
+                    check=False,
+                )
         ctx.log(f"engine reset ({mode}): {', '.join(names) or 'no engine containers'}")
 
 

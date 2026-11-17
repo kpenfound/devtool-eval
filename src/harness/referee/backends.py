@@ -88,7 +88,14 @@ def _openai(system, prompt, schema, model) -> str:
         model=model,
         instructions=system,
         input=prompt,
-        text={"format": {"type": "json_schema", "name": "scorecard", "schema": schema, "strict": False}},
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "scorecard",
+                "schema": schema,
+                "strict": False,
+            }
+        },
     )
     return resp.output_text
 

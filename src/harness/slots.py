@@ -3,6 +3,13 @@
 A slot is a private generic GitHub repo (``slot-01..N``) plus a local working copy the
 agent runs in. Slots with no ``repo`` are local-only: no pushes, no integrations.
 Slot history carries over between runs, so results are always looked up by commit SHA.
+
+A lease file records who holds a slot (run id, pid, host) and, for a run, the name of the
+``<state>/homes/<name>/`` directory it will build its fake HOME in. The name is written with
+the lease, before the directory exists, so a crashed run's home can be found from its stale
+lease even when ``run.json`` never got to record it. The lease is only a pointer: whether a
+home is still owned is decided by the home's own lock (``harness.homes``), which dies with its
+owner.
 """
 
 from __future__ import annotations
@@ -27,12 +34,16 @@ class Lease:
     run_id: str
     path: Path
     agent_token: str | None = None
+    home: str | None = None  # name of the run's <state>/homes/<name>/ directory
 
     def record_token(self, token: str) -> None:
         self.agent_token = token
         data = json.loads(self.path.read_text())
         data["agent_token"] = token
-        self.path.write_text(json.dumps(data))
+        # Replaced atomically: recovery in another process may be reading the lease.
+        tmp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data))
+        os.replace(tmp, self.path)
 
 
 class SlotBusy(RuntimeError):
@@ -54,11 +65,17 @@ class SlotPool:
                 return s
         raise KeyError(f"no slot named {name!r}")
 
-    def candidates(self, preferred: str | None = None, *, remote_only: bool = False) -> list[SlotConfig]:
+    def candidates(
+        self, preferred: str | None = None, *, remote_only: bool = False
+    ) -> list[SlotConfig]:
         """Slots a run may lease, GitHub slots first: local-only slots are a fallback for
         before the test org exists. ``remote_only`` (cloud runs) never falls back, since Cloud
         Checks need a GitHub ``origin``."""
-        slots = [self.get(preferred)] if preferred else sorted(self.config.slots, key=lambda s: s.repo is None)
+        slots = (
+            [self.get(preferred)]
+            if preferred
+            else sorted(self.config.slots, key=lambda s: s.repo is None)
+        )
         if remote_only:
             if preferred and not slots[0].repo:
                 raise ValueError(f"slot {preferred} is local-only; cloud runs need a GitHub slot")
@@ -70,7 +87,14 @@ class SlotPool:
                 )
         return slots
 
-    def lease(self, run_id: str, preferred: str | None = None, *, remote_only: bool = False) -> Lease:
+    def lease(
+        self,
+        run_id: str,
+        preferred: str | None = None,
+        *,
+        remote_only: bool = False,
+        home: str | None = None,
+    ) -> Lease:
         for slot in self.candidates(preferred, remote_only=remote_only):
             path = self._lease_path(slot.name)
             try:
@@ -84,10 +108,11 @@ class SlotPool:
                         "pid": os.getpid(),
                         "host": socket.gethostname(),
                         "started": time.time(),
+                        "home": home,
                     },
                     f,
                 )
-            return Lease(slot=slot, run_id=run_id, path=path)
+            return Lease(slot=slot, run_id=run_id, path=path, home=home)
         raise SlotBusy("no free slot" + (f" ({preferred} is leased)" if preferred else ""))
 
     def release(self, lease: Lease) -> None:
@@ -156,7 +181,9 @@ class SlotPool:
         gh = self.config.github
         return f"{gh.org}/ref-{entry.name}" if gh.mirrors and gh.org else None
 
-    def cached_repo(self, entry: CorpusEntry, token: str | None = None, upstream: bool = False) -> Path:
+    def cached_repo(
+        self, entry: CorpusEntry, token: str | None = None, upstream: bool = False
+    ) -> Path:
         """A bare clone of the corpus repo (or its mirror) containing the pinned SHA.
 
         ``upstream`` skips the mirror, for pinning and mirroring, where the SHA may not be
@@ -173,7 +200,9 @@ class SlotPool:
             run(["git", "clone", "--bare", src, str(cache)], env=env)
         else:
             run(["git", "remote", "set-url", "origin", src], cwd=cache, env=env)  # mirrors toggled
-        has = run(["git", "cat-file", "-e", f"{entry.sha}^{{commit}}"], cwd=cache, env=env, check=False)
+        has = run(
+            ["git", "cat-file", "-e", f"{entry.sha}^{{commit}}"], cwd=cache, env=env, check=False
+        )
         if has.returncode != 0:
             run(["git", "fetch", "origin", entry.sha], cwd=cache, env=env)
         run(["git", "update-ref", f"refs/pins/{entry.sha}", entry.sha], cwd=cache, env=env)
@@ -188,7 +217,11 @@ class SlotPool:
         wd.mkdir(parents=True)
         env = self.git_env(harness_token)
         run(["git", "init", "-q", "-b", "main"], cwd=wd, env=env)
-        run(["git", "fetch", "-q", "--no-tags", str(cache), f"refs/pins/{entry.sha}"], cwd=wd, env=env)
+        run(
+            ["git", "fetch", "-q", "--no-tags", str(cache), f"refs/pins/{entry.sha}"],
+            cwd=wd,
+            env=env,
+        )
         run(["git", "reset", "-q", "--hard", entry.sha], cwd=wd, env=env)
         if slot.repo:
             origin = f"https://github.com/{slot.repo}.git"
@@ -216,7 +249,9 @@ class SlotPool:
             if b != "main":
                 repo.delete_branch(b)
 
-    def pushed_shas(self, slot: SlotConfig, entry: CorpusEntry, token: str | None) -> dict[str, str]:
+    def pushed_shas(
+        self, slot: SlotConfig, entry: CorpusEntry, token: str | None
+    ) -> dict[str, str]:
         """Remote branch heads that differ from the pinned SHA: what the agent pushed."""
         url = f"https://github.com/{slot.repo}.git" if slot.repo else str(self.local_origin(slot))
         out = run(
@@ -241,8 +276,14 @@ class SlotPool:
         cache = self.cached_repo(entry, harness_token)
         env = self.git_env(harness_token)
         run(
-            ["git", "push", "-q", "--force", f"https://github.com/{slot.repo}.git",
-             f"refs/pins/{entry.sha}:refs/heads/main"],
+            [
+                "git",
+                "push",
+                "-q",
+                "--force",
+                f"https://github.com/{slot.repo}.git",
+                f"refs/pins/{entry.sha}:refs/heads/main",
+            ],
             cwd=cache,
             env=env,
         )

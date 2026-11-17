@@ -42,7 +42,9 @@ def _strip(init: dict) -> dict:
     return {k: init.get(k) for k in COMPARE}
 
 
-def claude_parity(config: HarnessConfig, bundle_dir: Path, workdir: Path, cli: str = "claude") -> dict:
+def claude_parity(
+    config: HarnessConfig, bundle_dir: Path, workdir: Path, cli: str = "claude"
+) -> dict:
     root = config.state / "parity" / datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
     adapter = ClaudeAdapter()
     variant = resolve_variant(bundle_dir)
@@ -58,31 +60,52 @@ def claude_parity(config: HarnessConfig, bundle_dir: Path, workdir: Path, cli: s
         env.update(adapter.auth_env(home, cfg))
         if side == "cli":
             cmd = [
-                shutil.which(cli, path=env["PATH"]) or cli, "-p", PROMPT,
-                "--output-format", "stream-json", "--verbose",
-                "--permission-mode", cfg.permission_mode, "--max-turns", "2",
+                shutil.which(cli, path=env["PATH"]) or cli,
+                "-p",
+                PROMPT,
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--permission-mode",
+                cfg.permission_mode,
+                "--max-turns",
+                "2",
             ]
             if cfg.model:
                 cmd += ["--model", cfg.model]
-            out = subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, text=True, timeout=300)
+            out = subprocess.run(
+                cmd, cwd=workdir, env=env, capture_output=True, text=True, timeout=300
+            )
             (run_dir / "stream.jsonl").write_text(out.stdout)
             init = next(
-                (json.loads(line) for line in out.stdout.splitlines()
-                 if line.startswith("{") and '"subtype":"init"' in line.replace(" ", "")),
+                (
+                    json.loads(line)
+                    for line in out.stdout.splitlines()
+                    if line.startswith("{") and '"subtype":"init"' in line.replace(" ", "")
+                ),
                 {},
             )
         else:
             inv = AgentInvocation(
-                agent=AgentKind.claude, phase=Phase.task, prompt=PROMPT, workdir=str(workdir),
-                home=str(home), run_dir=str(run_dir), env=env,
+                agent=AgentKind.claude,
+                phase=Phase.task,
+                prompt=PROMPT,
+                workdir=str(workdir),
+                home=str(home),
+                run_dir=str(run_dir),
+                env=env,
                 budget=Budget(wall_clock_s=300, max_turns=2, max_cost_usd=1.0),
-                agent_config=cfg.model_dump(), mcp_servers=variant.spec.mcp,
+                agent_config=cfg.model_dump(),
+                mcp_servers=variant.spec.mcp,
                 python=neutral_python(config.state),
             )
             run_invocation(inv)
             init = next(
-                (r["data"].get("data", {}) for r in read_raw(inv.raw_path)
-                 if r["type"] == "SystemMessage" and r["data"].get("subtype") == "init"),
+                (
+                    r["data"].get("data", {})
+                    for r in read_raw(inv.raw_path)
+                    if r["type"] == "SystemMessage" and r["data"].get("subtype") == "init"
+                ),
                 {},
             )
         results[side] = _strip(init)
@@ -91,6 +114,12 @@ def claude_parity(config: HarnessConfig, bundle_dir: Path, workdir: Path, cli: s
         for k in COMPARE
         if results["cli"].get(k) != results["sdk"].get(k)
     }
-    report = {"dir": str(root), "match": not diffs, "diffs": diffs, "cli": results["cli"], "sdk": results["sdk"]}
+    report = {
+        "dir": str(root),
+        "match": not diffs,
+        "diffs": diffs,
+        "cli": results["cli"],
+        "sdk": results["sdk"],
+    }
     (root / "parity.json").write_text(json.dumps(report, indent=2))
     return report

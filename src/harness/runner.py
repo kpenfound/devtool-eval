@@ -3,6 +3,13 @@
 One run is one scenario (repo + variant bundle + agent + tool version + cloud on/off).
 Teardown always happens in ``finally``; a run whose process died is cleaned up by
 ``recover()`` at the start of the next invocation.
+
+The fake HOME (``<state>/homes/<random>/``, see ``harness.homes``) belongs to the run from
+the moment its name is chosen: the name goes into the slot lease, and the directory is
+claimed with a lock before it is created. Teardown, whatever the outcome and wherever setup
+got to, copies the agent's session records into the run bundle and deletes the whole
+directory; ``recover()`` does the same for a crashed run and also reclaims any other homes
+that no live run or recovery owns.
 """
 
 from __future__ import annotations
@@ -10,7 +17,6 @@ from __future__ import annotations
 import json
 import os
 import platform
-import secrets
 import shutil
 import socket
 import traceback
@@ -30,6 +36,14 @@ from harness.bundle import (
     resolve_variant,
 )
 from harness.config import HarnessConfig
+from harness.homes import (
+    HomeClaim,
+    entry_names,
+    homes_root,
+    name_of_home,
+    new_name,
+    retain_sessions,
+)
 from harness.isolation import base_env, git_credential_env, make_home, neutral_python, run
 from harness.models import (
     AgentTurnResult,
@@ -86,11 +100,17 @@ class Runner:
         for slot, lease_data in self.pool.stale_leases():
             self._recover_one(slot, lease_data)
             cleaned.append(lease_data.get("run_id", "?"))
+        try:
+            self._reclaim_homes()
+        except Exception as e:  # noqa: BLE001 - housekeeping must not stop a run from starting
+            self.log(f"  reclaiming leftover homes failed: {type(e).__name__}: {e}")
         return cleaned
 
     def _recover_one(self, slot, lease_data: dict) -> None:
         run_id = lease_data.get("run_id", "?")
         self.log(f"recovering crashed run {run_id} on {slot.name}")
+        root = homes_root(self.config.state)
+        meta = None
         try:
             bundle = find_bundle(self.config.runs, run_id)
             meta = bundle.meta()
@@ -102,11 +122,32 @@ class Runner:
         except (FileNotFoundError, ValueError):
             bundle, entry = None, None
         token = self._harness_token(slot.repo, entry)
-        if entry is not None:
-            ctx = self._bare_ctx(bundle, slot, entry, token)
-            for integ in self.pack.integrations:
-                _quietly(lambda integ=integ: integ.teardown(ctx), self.log)
-            _quietly(lambda: self.pool.teardown(slot, entry, token), self.log)
+        scratch: HomeClaim | None = None
+        try:
+            if entry is not None:
+                # Teardown needs a HOME to run the tool in; it gets a throwaway one, owned like
+                # a live run's home while we use it and removed below.
+                scratch = HomeClaim.new(root)
+                ctx = self._bare_ctx(bundle, slot, entry, token, scratch)
+                for integ in self.pack.integrations:
+                    _quietly(lambda integ=integ: integ.teardown(ctx), self.log)
+                _quietly(lambda: self.pool.teardown(slot, entry, token), self.log)
+        finally:
+            # The crashed run's own home: named by its lease (setup may have died before
+            # run.json recorded it) and by run.json.
+            names = dict.fromkeys(
+                n
+                for n in (lease_data.get("home"), name_of_home(root, meta.home if meta else None))
+                if n
+            )
+            for name in names:
+                claim = HomeClaim.adopt(root, name)
+                if claim is None:
+                    self.log(f"  home {name} is still owned by a live process; leaving it")
+                else:
+                    self._discard_home(claim, bundle)
+            if scratch is not None:
+                self._discard_home(scratch, None)
         if lease_data.get("agent_token"):
             _quietly(lambda: github.revoke(lease_data["agent_token"]), self.log)
         if token:
@@ -120,11 +161,11 @@ class Runner:
         mirror = self.pool.mirror(entry) if entry else None
         return self.app.harness_token([repo, mirror] if mirror else [repo])
 
-    def _bare_ctx(self, bundle, slot, entry, token) -> RunContext:
-        run_dir = bundle.path if bundle else self.config.state / "recovery"
-        run_dir.mkdir(parents=True, exist_ok=True)
-        meta = bundle.meta() if bundle else RunMeta(run_id="recovery", spec=RunSpec(repo=entry.name, bundle="?", agent="claude"))
-        home = make_home(Path(meta.home).parent if meta.home else run_dir, self.config)
+    def _bare_ctx(self, bundle, slot, entry, token, claim: HomeClaim) -> RunContext:
+        """A context for tearing a crashed run down, with a throwaway HOME in ``claim``."""
+        run_dir = bundle.path
+        meta = bundle.meta()
+        home = make_home(claim.path, self.config)
         gh = self.config.github
         ctx = RunContext(
             run_id=meta.run_id,
@@ -141,6 +182,59 @@ class Runner:
         ctx.env.update(self.pack.environment.prepare(ctx))
         return ctx
 
+    def _reclaim_homes(self) -> None:
+        """Remove every ``<state>/homes/`` entry that no live run or recovery owns.
+
+        Entries are listed first and then claimed one by one (non-blocking): a home owned by a
+        live process cannot be claimed however old it is or however far its setup has got, and
+        one created after the listing is not in it. Where ``run.json`` names the home, its
+        session records are kept in that bundle first.
+        """
+        root = homes_root(self.config.state)
+        index: dict[str, Path] | None = None
+        for name in entry_names(root):
+            if os.path.islink(root / name):
+                self.log(f"  ignoring symlink in homes/: {name}")  # never followed, never removed
+                continue
+            claim = HomeClaim.adopt(root, name)
+            if claim is None:
+                continue
+            bundle = None
+            if os.path.lexists(claim.path):
+                self.log(f"reclaiming unowned home {name}")
+                if index is None:
+                    index = self._homes_by_bundle(root)
+                bundle = RunBundle(index[name]) if name in index else None
+            self._discard_home(claim, bundle)
+
+    def _homes_by_bundle(self, root: Path) -> dict[str, Path]:
+        out: dict[str, Path] = {}
+        for run_json in self.config.runs.glob("*/run.json"):
+            try:
+                name = name_of_home(root, json.loads(run_json.read_text()).get("home"))
+            except (OSError, ValueError, AttributeError):
+                continue
+            if name:
+                out[name] = run_json.parent
+        return out
+
+    def _discard_home(self, claim: HomeClaim, bundle: RunBundle | None) -> None:
+        """Keep the agent's session records in ``bundle`` (if any), then delete the whole
+        ``homes/<name>/`` and release the claim. Failures are logged, never raised."""
+        if bundle is not None:
+            try:
+                kept = retain_sessions(claim.root, claim.name, bundle.path, self.log)
+                if kept:
+                    self.log(f"  kept agent session records: {', '.join(kept)}")
+            except Exception as e:  # noqa: BLE001 - the home is still removed
+                self.log(
+                    f"  teardown step failed: keeping session records: {type(e).__name__}: {e}"
+                )
+        try:
+            claim.remove()
+        except Exception as e:  # noqa: BLE001
+            self.log(f"  teardown step failed: removing home {claim.name}: {type(e).__name__}: {e}")
+
     # --- the run --------------------------------------------------------------------------
 
     def run(self, spec: RunSpec, *, referee: bool = True) -> RunBundle:
@@ -151,7 +245,9 @@ class Runner:
         entry = corpus[spec.repo]
         if not entry.ready:
             raise ValueError(f"corpus entry {entry.name} has no pinned SHA yet")
-        self.pool.candidates(spec.slot, remote_only=spec.cloud)  # config errors fail before a run dir exists
+        self.pool.candidates(
+            spec.slot, remote_only=spec.cloud
+        )  # config errors fail before a run dir exists
         variant = resolve_variant(self.pack.bundle_dir(spec.bundle))
         retries = self.config.retries if spec.retries is None else spec.retries
 
@@ -167,8 +263,9 @@ class Runner:
         bundle = RunBundle.create(self.config.runs, meta)
         bundle.write_json("variant.json", variant.model_dump())
         self.log(f"run {meta.run_id}")
+        home_name = new_name()  # in the lease from the start, long before the directory exists
         try:
-            lease = self.pool.lease(meta.run_id, spec.slot, remote_only=spec.cloud)
+            lease = self.pool.lease(meta.run_id, spec.slot, remote_only=spec.cloud, home=home_name)
         except BaseException as e:
             meta.status, meta.error, meta.finished_at = RunStatus.failed, str(e), utcnow()
             bundle.write_meta(meta)
@@ -176,9 +273,11 @@ class Runner:
         meta.slot = lease.slot.name
         harness_token: str | None = None
         ctx: RunContext | None = None
+        claim: HomeClaim | None = None
         try:
+            claim = HomeClaim.new(homes_root(self.config.state), home_name)
             harness_token = self._harness_token(lease.slot.repo, entry)
-            ctx = self._setup(bundle, meta, lease, entry, variant, harness_token)
+            ctx = self._setup(bundle, meta, lease, entry, variant, harness_token, claim)
             bundle.write_meta(meta)
             self._execute(bundle, meta, ctx, retries)
             meta.status = RunStatus.completed
@@ -191,19 +290,23 @@ class Runner:
         finally:
             meta.finished_at = utcnow()
             bundle.write_meta(meta)
-            self._teardown(lease, entry, ctx, harness_token)
+            self._teardown(bundle, lease, entry, ctx, harness_token, claim)
         if meta.status == RunStatus.completed:
             try:
                 self._store(bundle, referee=referee)
             except Exception as e:  # noqa: BLE001 - the bundle is intact; stages can be re-run
-                self.log(f"post-run processing failed: {type(e).__name__}: {e} "
-                         f"(re-run `harness analyze {bundle.run_id}`)")
+                self.log(
+                    f"post-run processing failed: {type(e).__name__}: {e} "
+                    f"(re-run `harness analyze {bundle.run_id}`)"
+                )
         return bundle
 
-    def _setup(self, bundle, meta, lease: Lease, entry, variant, harness_token) -> RunContext:
+    def _setup(
+        self, bundle, meta, lease: Lease, entry, variant, harness_token, claim: HomeClaim
+    ) -> RunContext:
         self.log(f"setup: slot {lease.slot.name}, {entry.name}@{entry.sha[:12]}")
         workdir = self.pool.reset(lease.slot, entry, harness_token)
-        home = make_home(self.config.state / "homes" / secrets.token_hex(6), self.config)
+        home = make_home(claim.path, self.config)
         meta.home = str(home)
         gh = self.config.github
         env = base_env(home, self.config, git_name=gh.bot_name, git_email=gh.bot_email)
@@ -248,8 +351,16 @@ class Runner:
         }
         return ctx
 
-    def _invocation(self, ctx: RunContext, phase: Phase, attempt: int, prompt: str, budget: Budget,
-                    resume: str | None, schema: dict | None = None) -> AgentInvocation:
+    def _invocation(
+        self,
+        ctx: RunContext,
+        phase: Phase,
+        attempt: int,
+        prompt: str,
+        budget: Budget,
+        resume: str | None,
+        schema: dict | None = None,
+    ) -> AgentInvocation:
         return AgentInvocation(
             agent=ctx.meta.spec.agent,
             phase=phase,
@@ -288,7 +399,9 @@ class Runner:
                 self.log("retry skipped: budget exhausted or no session to resume")
                 break
             message = self.pack.prompt("retry").format(error=v.error_excerpt)
-            meta.nudges.append(Nudge(attempt=attempt, message=message, verify_exit_code=v.exit_code))
+            meta.nudges.append(
+                Nudge(attempt=attempt, message=message, verify_exit_code=v.exit_code)
+            )
             self.log(f"retry {attempt}/{retries}")
             res = run_invocation(
                 self._invocation(ctx, Phase.retry, attempt, message, left, meta.session_id)
@@ -309,8 +422,13 @@ class Runner:
             self.log("feedback turn")
             fb = run_invocation(
                 self._invocation(
-                    ctx, Phase.feedback, 0, self.pack.prompt("feedback"),
-                    self.config.feedback_budget, meta.session_id, feedback_schema(),
+                    ctx,
+                    Phase.feedback,
+                    0,
+                    self.pack.prompt("feedback"),
+                    self.config.feedback_budget,
+                    meta.session_id,
+                    feedback_schema(),
                 )
             )
             meta.turns.append(fb)
@@ -343,13 +461,28 @@ class Runner:
             f"cost={res.cost_usd} {res.duration_s:.0f}s"
         )
 
-    def _teardown(self, lease: Lease, entry, ctx: RunContext | None, harness_token) -> None:
+    def _teardown(
+        self,
+        bundle: RunBundle,
+        lease: Lease,
+        entry,
+        ctx: RunContext | None,
+        harness_token,
+        claim: HomeClaim | None,
+    ) -> None:
+        """Runs whatever the outcome and however far setup got (``ctx`` is None if it raised).
+
+        The fake HOME is not kept: its agent session records are copied into the bundle
+        (``agent-home/``), then the whole ``homes/<random>/`` is deleted. That is all of it
+        that is retained; credentials in it (Codex ``auth.json``, a Dagger Cloud config) go
+        with the directory and are never copied.
+        """
         self.log("teardown")
         if ctx is not None:
             for integ in self.pack.integrations:
                 _quietly(lambda integ=integ: integ.teardown(ctx), self.log)
-            # Agent session files in the fake HOME are kept as raw data; credentials aren't.
-            (ctx.home / ".codex" / "auth.json").unlink(missing_ok=True)
+        if claim is not None:
+            self._discard_home(claim, bundle)
         _quietly(lambda: self.pool.teardown(lease.slot, entry, harness_token), self.log)
         if lease.agent_token:
             _quietly(lambda: github.revoke(lease.agent_token), self.log)
@@ -414,7 +547,11 @@ def snapshot(workdir: Path, dest: Path, patterns: list[str]) -> None:
     for pattern in patterns:
         for p in sorted(workdir.glob(pattern)):
             rel = p.relative_to(workdir)
-            if not p.is_file() or SNAPSHOT_SKIP_DIRS & set(rel.parts[:-1]) or p.name in SNAPSHOT_SKIP_FILES:
+            if (
+                not p.is_file()
+                or SNAPSHOT_SKIP_DIRS & set(rel.parts[:-1])
+                or p.name in SNAPSHOT_SKIP_FILES
+            ):
                 continue
             if p.stat().st_size > MAX_SNAPSHOT_BYTES or copied >= MAX_SNAPSHOT_FILES:
                 continue

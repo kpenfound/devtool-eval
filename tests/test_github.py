@@ -10,8 +10,9 @@ from harness import github
 
 def repo_with(handler) -> github.Repo:
     r = github.Repo("org/slot-01", "t")
-    r.client = httpx.Client(base_url="https://api.github.com/repos/org/slot-01",
-                            transport=httpx.MockTransport(handler))
+    r.client = httpx.Client(
+        base_url="https://api.github.com/repos/org/slot-01", transport=httpx.MockTransport(handler)
+    )
     return r
 
 

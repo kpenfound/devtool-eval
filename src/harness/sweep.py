@@ -55,13 +55,30 @@ class Cell(BaseModel):
 
     @property
     def key(self) -> str:
-        return "/".join([self.agent.value, self.repo, self.bundle, self.tool_version or "installed",
-                         "cloud" if self.cloud else "local", f"r{self.rep}"])
+        return "/".join(
+            [
+                self.agent.value,
+                self.repo,
+                self.bundle,
+                self.tool_version or "installed",
+                "cloud" if self.cloud else "local",
+                f"r{self.rep}",
+            ]
+        )
 
     def spec(self, plan: SweepPlan) -> RunSpec:
-        return RunSpec(repo=self.repo, bundle=self.bundle, agent=self.agent, pack=plan.pack,
-                       tool_version=self.tool_version, cloud=self.cloud, retries=plan.retries,
-                       model=plan.models.get(self.agent.value), sweep=plan.name, sweep_cell=self.key)
+        return RunSpec(
+            repo=self.repo,
+            bundle=self.bundle,
+            agent=self.agent,
+            pack=plan.pack,
+            tool_version=self.tool_version,
+            cloud=self.cloud,
+            retries=plan.retries,
+            model=plan.models.get(self.agent.value),
+            sweep=plan.name,
+            sweep_cell=self.key,
+        )
 
 
 class BundlePin(BaseModel):
@@ -101,11 +118,21 @@ class CellStatus:
         return sum(r.status in HARNESS_FAILURES for r in self.runs)
 
 
-def build_plan(config: HarnessConfig, pack: ToolPack, name: str, *, repos: list[str] | None,
-               bundles: list[str] | None, agents: list[AgentKind] | None,
-               tool_versions: list[str] | None, cloud: list[bool], reps: int,
-               model: str | None = None, retries: int | None = None,
-               referee: bool = True) -> SweepPlan:
+def build_plan(
+    config: HarnessConfig,
+    pack: ToolPack,
+    name: str,
+    *,
+    repos: list[str] | None,
+    bundles: list[str] | None,
+    agents: list[AgentKind] | None,
+    tool_versions: list[str] | None,
+    cloud: list[bool],
+    reps: int,
+    model: str | None = None,
+    retries: int | None = None,
+    referee: bool = True,
+) -> SweepPlan:
     """Expand the grid. Omitted dimensions mean all of them: every pinned corpus repo, every
     bundle, every agent. Reps are the outer loop, so a partial sweep covers the whole grid
     once before it starts repeating, and bundles are the inner loop, so the variants being
@@ -119,15 +146,24 @@ def build_plan(config: HarnessConfig, pack: ToolPack, name: str, *, repos: list[
     versions: list[str | None] = list(tool_versions) if tool_versions else [None]
     cells = [
         Cell(agent=a, repo=r, bundle=b, tool_version=v, cloud=c, rep=rep)
-        for rep, v, c, a, r, b in product(range(1, reps + 1), versions, cloud, agents, repos, bundles)
+        for rep, v, c, a, r, b in product(
+            range(1, reps + 1), versions, cloud, agents, repos, bundles
+        )
     ]
     pins = {}
     for b in bundles:
         rb = resolve_variant(pack.bundle_dir(b))
         pins[b] = BundlePin(version=rb.spec.version, hash=rb.content_hash)
     models = {a.value: model or getattr(config.agents, a.value).model for a in agents}
-    return SweepPlan(name=name, pack=pack.name, cells=cells, models=models, bundles=pins,
-                     retries=config.retries if retries is None else retries, referee=referee)
+    return SweepPlan(
+        name=name,
+        pack=pack.name,
+        cells=cells,
+        models=models,
+        bundles=pins,
+        retries=config.retries if retries is None else retries,
+        referee=referee,
+    )
 
 
 def agent_auth(config: HarnessConfig, agent: AgentKind) -> tuple[bool, str]:
@@ -143,7 +179,9 @@ def agent_auth(config: HarnessConfig, agent: AgentKind) -> tuple[bool, str]:
 
 
 class Sweep:
-    def __init__(self, config: HarnessConfig, pack: ToolPack, name: str, log: Callable[[str], None] = print):
+    def __init__(
+        self, config: HarnessConfig, pack: ToolPack, name: str, log: Callable[[str], None] = print
+    ):
         if not name or "/" in name or name.startswith("."):
             raise SweepError(f"invalid sweep name {name!r}")
         self.config, self.pack, self.name, self.log = config, pack, name, log
@@ -235,15 +273,26 @@ class Sweep:
                 problems.append(f"bundle {name} no longer exists")
                 continue
             if rb.content_hash != pin.hash:
-                problems.append(f"bundle {name} changed: planned {pin.version}/{pin.hash[:12]}, "
-                                f"now {rb.spec.version}/{rb.content_hash[:12]}")
+                problems.append(
+                    f"bundle {name} changed: planned {pin.version}/{pin.hash[:12]}, "
+                    f"now {rb.spec.version}/{rb.content_hash[:12]}"
+                )
         runs = self.runs() if runs is None else runs
         installed = {c.key for c in plan.cells if c.tool_version is None}
-        seen = sorted({m.versions["tool"] for k, ms in runs.items() if k in installed
-                       for m in ms if m.status == RunStatus.completed and m.versions.get("tool")})
+        seen = sorted(
+            {
+                m.versions["tool"]
+                for k, ms in runs.items()
+                if k in installed
+                for m in ms
+                if m.status == RunStatus.completed and m.versions.get("tool")
+            }
+        )
         if len(seen) > 1:
-            problems.append(f"installed tool version changed during the sweep: {', '.join(seen)} "
-                            "(pin it with --tool-version)")
+            problems.append(
+                f"installed tool version changed during the sweep: {', '.join(seen)} "
+                "(pin it with --tool-version)"
+            )
         return problems
 
     # --- running ----------------------------------------------------------------------------
@@ -273,8 +322,14 @@ class Sweep:
         finally:
             path.unlink(missing_ok=True)
 
-    def run(self, plan: SweepPlan, *, max_attempts: int = 2, allow_drift: bool = False,
-            max_consecutive_failures: int = 3) -> list[CellStatus]:
+    def run(
+        self,
+        plan: SweepPlan,
+        *,
+        max_attempts: int = 2,
+        allow_drift: bool = False,
+        max_consecutive_failures: int = 3,
+    ) -> list[CellStatus]:
         """Run every pending cell, retrying harness failures in later passes until each cell
         is done or out of attempts. Returns the final status."""
         from harness.runner import Runner
@@ -284,22 +339,31 @@ class Sweep:
             runner.recover()  # marks runs that died mid-flight as crashed, so they count
             consecutive = 0
             while True:
-                pending = [s for s in self.status(plan, max_attempts=max_attempts)
-                           if s.state == CellState.pending]
+                pending = [
+                    s
+                    for s in self.status(plan, max_attempts=max_attempts)
+                    if s.state == CellState.pending
+                ]
                 if not pending:
                     break
                 for i, st in enumerate(pending, 1):
                     if not allow_drift and (problems := self.drift(plan)):
-                        raise SweepError("sweep conditions drifted (use --allow-drift to continue):\n  "
-                                         + "\n  ".join(problems))
+                        raise SweepError(
+                            "sweep conditions drifted (use --allow-drift to continue):\n  "
+                            + "\n  ".join(problems)
+                        )
                     attempt = st.harness_failures + self._unrecorded[st.cell.key] + 1
-                    self.log(f"[sweep {self.name}] {i}/{len(pending)} {st.cell.key}"
-                             + (f" (attempt {attempt}/{max_attempts})" if attempt > 1 else ""))
+                    self.log(
+                        f"[sweep {self.name}] {i}/{len(pending)} {st.cell.key}"
+                        + (f" (attempt {attempt}/{max_attempts})" if attempt > 1 else "")
+                    )
                     ok = self._run_cell(runner, plan, st.cell)
                     consecutive = 0 if ok else consecutive + 1
                     if consecutive >= max_consecutive_failures:
-                        raise SweepError(f"{consecutive} harness failures in a row; stopping. "
-                                         f"Fix the cause and resume with `harness sweep run {self.name}`.")
+                        raise SweepError(
+                            f"{consecutive} harness failures in a row; stopping. "
+                            f"Fix the cause and resume with `harness sweep run {self.name}`."
+                        )
             return self.status(plan, max_attempts=max_attempts)
 
     def _run_cell(self, runner, plan: SweepPlan, cell: Cell) -> bool:

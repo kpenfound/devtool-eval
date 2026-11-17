@@ -41,7 +41,11 @@ def core_facts(actx: AnalysisContext, bundle: RunBundle) -> list[Fact]:
     work_turns = [t for t in meta.turns if t.phase != Phase.feedback]
     verified = bool(meta.final_verify and meta.final_verify.passed)
     facts = [
-        Fact(key="verify.passed", value=verified, detail="the pack's verify passed on the agent's work tree"),
+        Fact(
+            key="verify.passed",
+            value=verified,
+            detail="the pack's verify passed on the agent's work tree",
+        ),
         Fact(key="verify.attempts", value=len(meta.verifies)),
         Fact(key="verify.checks", value=meta.final_verify.checks if meta.final_verify else []),
         Fact(
@@ -64,11 +68,13 @@ def core_facts(actx: AnalysisContext, bundle: RunBundle) -> list[Fact]:
     facts.append(Fact(key="uncommitted_changes", value=bool(git_state.get("status"))))
     delivered, why = delivery(meta.pushed_shas, git_state)
     facts.append(Fact(key="delivered", value=delivered, detail=why))
-    facts.append(Fact(
-        key="passed",
-        value=verified and delivered,
-        detail="verify passed and the verified tree is what was pushed",
-    ))
+    facts.append(
+        Fact(
+            key="passed",
+            value=verified and delivered,
+            detail="verify passed and the verified tree is what was pushed",
+        )
+    )
     for integ in meta.integration:
         facts.append(Fact(key=f"integration.{integ.name}.enabled", value=integ.enabled))
         facts.append(Fact(key=f"integration.{integ.name}.green", value=integ.green))
@@ -98,7 +104,10 @@ def delivery(pushed_shas: list[str], git_state: dict) -> tuple[bool, str]:
 
 
 def passed(meta, git_state: dict) -> bool:
-    return bool(meta.final_verify and meta.final_verify.passed) and delivery(meta.pushed_shas, git_state)[0]
+    return (
+        bool(meta.final_verify and meta.final_verify.passed)
+        and delivery(meta.pushed_shas, git_state)[0]
+    )
 
 
 def harness_exposure(events: list[Event]) -> Fact:
