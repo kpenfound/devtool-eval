@@ -18,7 +18,9 @@ slots_app = typer.Typer(no_args_is_help=True, help="Slot pool status and cleanup
 store_app = typer.Typer(no_args_is_help=True, help="DuckDB store.")
 docs_app = typer.Typer(no_args_is_help=True, help="Docs map sources.")
 github_app = typer.Typer(no_args_is_help=True, help="GitHub App plumbing.")
-sweep_app = typer.Typer(no_args_is_help=True, help="Named, resumable sweeps over the scenario grid.")
+sweep_app = typer.Typer(
+    no_args_is_help=True, help="Named, resumable sweeps over the scenario grid."
+)
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(slots_app, name="slots")
 app.add_typer(store_app, name="store")
@@ -49,9 +51,15 @@ def run(
     repo: Annotated[str, typer.Option(help="Corpus repo name, e.g. flask")],
     bundle: Annotated[str, typer.Option(help="Variant bundle, e.g. baseline")],
     agent: Annotated[AgentKind, typer.Option(help="claude or codex")],
-    tool_version: Annotated[str | None, typer.Option(help="Pin the tool version (default: installed)")] = None,
-    cloud: Annotated[bool, typer.Option("--cloud/--no-cloud", help="Ambient tool-cloud login")] = True,
-    retries: Annotated[int | None, typer.Option(help="Scripted retries (default from config)")] = None,
+    tool_version: Annotated[
+        str | None, typer.Option(help="Pin the tool version (default: installed)")
+    ] = None,
+    cloud: Annotated[
+        bool, typer.Option("--cloud/--no-cloud", help="Ambient tool-cloud login")
+    ] = True,
+    retries: Annotated[
+        int | None, typer.Option(help="Scripted retries (default from config)")
+    ] = None,
     slot: Annotated[str | None, typer.Option(help="Use this slot")] = None,
     model: Annotated[str | None, typer.Option(help="Agent model override")] = None,
     referee: Annotated[bool, typer.Option("--referee/--no-referee")] = True,
@@ -62,19 +70,33 @@ def run(
     from harness.runner import Runner
 
     cfg, p = _ctx(config, pack)
-    spec = RunSpec(repo=repo, bundle=bundle, agent=agent, pack=p.name, tool_version=tool_version,
-                   cloud=cloud, retries=retries, slot=slot, model=model)
+    spec = RunSpec(
+        repo=repo,
+        bundle=bundle,
+        agent=agent,
+        pack=p.name,
+        tool_version=tool_version,
+        cloud=cloud,
+        retries=retries,
+        slot=slot,
+        model=model,
+    )
     result = Runner(cfg, p, log=lambda m: typer.echo(m, err=True)).run(spec, referee=referee)
     from harness.analysis import passed
 
     meta = result.meta()
-    typer.echo(json.dumps({
-        "run_id": meta.run_id,
-        "status": meta.status,
-        "passed": passed(meta, result.read_json("git_state.json") or {}),
-        "bundle": str(result.path),
-        "error": (meta.error or "").splitlines()[0] if meta.error else None,
-    }, indent=2))
+    typer.echo(
+        json.dumps(
+            {
+                "run_id": meta.run_id,
+                "status": meta.status,
+                "passed": passed(meta, result.read_json("git_state.json") or {}),
+                "bundle": str(result.path),
+                "error": (meta.error or "").splitlines()[0] if meta.error else None,
+            },
+            indent=2,
+        )
+    )
     if meta.status != "completed":
         raise typer.Exit(1)
 
@@ -106,7 +128,9 @@ def analyze(run_id: str, config: ConfigOpt = None, pack: PackOpt = None) -> None
 def referee(
     run_id: str,
     force: Annotated[bool, typer.Option(help="Overwrite an existing scorecard")] = False,
-    dry_run: Annotated[bool, typer.Option(help="Print the blinded prompt; don't call the model")] = False,
+    dry_run: Annotated[
+        bool, typer.Option(help="Print the blinded prompt; don't call the model")
+    ] = False,
     config: ConfigOpt = None,
     pack: PackOpt = None,
 ) -> None:
@@ -135,7 +159,10 @@ def report(
     bundle: str | None = None,
     agent: str | None = None,
     sweep: Annotated[str | None, typer.Option(help="Only runs from this named sweep")] = None,
-    since: Annotated[str | None, typer.Option(help="Only runs started at or after this date/time, e.g. 2026-10-29")] = None,
+    since: Annotated[
+        str | None,
+        typer.Option(help="Only runs started at or after this date/time, e.g. 2026-10-29"),
+    ] = None,
     output: Annotated[Path | None, typer.Option("-o", "--output")] = None,
     config: ConfigOpt = None,
     pack: PackOpt = None,
@@ -146,10 +173,20 @@ def report(
 
     cfg, p = _ctx(config, pack)
     facts = getattr(p, "report_facts", None) or [
-        "dagger.module_strategy", "dagger.ci_choice", "integration.cloud_checks.green",
+        "dagger.module_strategy",
+        "dagger.ci_choice",
+        "integration.cloud_checks.green",
     ]
     with Store(cfg.db) as store:
-        text = rep.build(store, report_facts=facts, repo=repo, bundle=bundle, agent=agent, sweep=sweep, since=since)
+        text = rep.build(
+            store,
+            report_facts=facts,
+            repo=repo,
+            bundle=bundle,
+            agent=agent,
+            sweep=sweep,
+            since=since,
+        )
     if output:
         output.write_text(text)
         typer.echo(str(output))
@@ -175,7 +212,9 @@ def calibrate(config: ConfigOpt = None) -> None:
 @app.command()
 def parity(
     bundle: str = "baseline",
-    repo: Annotated[str | None, typer.Option(help="Corpus repo to run in (default: empty dir)")] = None,
+    repo: Annotated[
+        str | None, typer.Option(help="Corpus repo to run in (default: empty dir)")
+    ] = None,
     config: ConfigOpt = None,
     pack: PackOpt = None,
 ) -> None:
@@ -192,7 +231,9 @@ def parity(
         pool = SlotPool(cfg)
         lease = pool.lease("parity")
         try:
-            workdir = pool.reset(pool.get(lease.slot.name).model_copy(update={"repo": None}), entry, None)
+            workdir = pool.reset(
+                pool.get(lease.slot.name).model_copy(update={"repo": None}), entry, None
+            )
         finally:
             pool.release(lease)
     out = claude_parity(cfg, p.bundle_dir(bundle), workdir)
@@ -221,12 +262,23 @@ def doctor(config: ConfigOpt = None, pack: PackOpt = None) -> None:
     for kind in AgentKind:
         ok, where = agent_auth(cfg, kind)
         check(f"{kind} auth ({getattr(cfg.agents, kind.value).auth})", ok, where)
-    check("github app", cfg.github.enabled, "local-only runs" if not cfg.github.enabled else str(cfg.github.app_id))
+    check(
+        "github app",
+        cfg.github.enabled,
+        "local-only runs" if not cfg.github.enabled else str(cfg.github.app_id),
+    )
     cl = cfg.cloud
-    check("cloud login", bool((cl.token_env and os.environ.get(cl.token_env)) or cl.config_dir),
-          "needed for --cloud runs")
+    check(
+        "cloud login",
+        bool((cl.token_env and os.environ.get(cl.token_env)) or cl.config_dir),
+        "needed for --cloud runs",
+    )
     corpus = p.corpus()
-    check("corpus", bool(corpus), ", ".join(f"{n}{'' if e.ready else ' (unpinned)'}" for n, e in corpus.items()))
+    check(
+        "corpus",
+        bool(corpus),
+        ", ".join(f"{n}{'' if e.ready else ' (unpinned)'}" for n, e in corpus.items()),
+    )
     check("slots", bool(cfg.slots), ", ".join(f"{s.name}→{s.repo or 'local'}" for s in cfg.slots))
     for name, ok, detail in rows:
         typer.echo(f"{'ok ' if ok else 'XX '} {name:28} {detail}")
@@ -263,8 +315,10 @@ def list_runs(config: ConfigOpt = None) -> None:
 def corpus_list(config: ConfigOpt = None, pack: PackOpt = None) -> None:
     _, p = _ctx(config, pack)
     for name, e in p.corpus().items():
-        typer.echo(f"{name:18} tier {e.tier:4} {(e.sha or 'UNPINNED')[:12]:12} "
-                   f"ci={len(e.ci)} coverage={len(e.expected_coverage)}  {e.tests}")
+        typer.echo(
+            f"{name:18} tier {e.tier:4} {(e.sha or 'UNPINNED')[:12]:12} "
+            f"ci={len(e.ci)} coverage={len(e.expected_coverage)}  {e.tests}"
+        )
 
 
 @corpus_app.command("show")
@@ -396,12 +450,24 @@ def github_mirror(name: str, config: ConfigOpt = None, pack: PackOpt = None) -> 
     if not org:
         raise typer.BadParameter("github.org is not configured")
     repo = f"{org}/ref-{name}"
-    github.create_private_repo(org, f"ref-{name}", gh.harness_token(), f"mirror of {entry.url} @ {entry.sha}")
+    github.create_private_repo(
+        org, f"ref-{name}", gh.harness_token(), f"mirror of {entry.url} @ {entry.sha}"
+    )
     pool = SlotPool(cfg)
     cache = pool.cached_repo(entry, upstream=True)
     token = gh.harness_token([repo])
-    sh(["git", "push", "-q", "--force", f"https://github.com/{repo}.git",
-        f"refs/pins/{entry.sha}:refs/heads/main"], cwd=cache, env=pool.git_env(token))
+    sh(
+        [
+            "git",
+            "push",
+            "-q",
+            "--force",
+            f"https://github.com/{repo}.git",
+            f"refs/pins/{entry.sha}:refs/heads/main",
+        ],
+        cwd=cache,
+        env=pool.git_env(token),
+    )
     github.Repo(repo, token).disable_actions()
     typer.echo(f"{repo} @ {entry.sha} (set `github.mirrors = true` in harness.toml to use mirrors)")
 
@@ -422,20 +488,38 @@ class CloudMode(StrEnum):
 @sweep_app.command("run")
 def sweep_run(
     name: Annotated[str, typer.Argument(help="Sweep name; run it again to resume")],
-    repo: Annotated[list[str] | None, typer.Option(help="Repeatable (default: every pinned corpus repo)")] = None,
-    bundle: Annotated[list[str] | None, typer.Option(help="Repeatable (default: every bundle)")] = None,
-    agent: Annotated[list[AgentKind] | None, typer.Option(help="Repeatable (default: every agent)")] = None,
-    tool_version: Annotated[list[str] | None, typer.Option(help="Repeatable (default: installed)")] = None,
+    repo: Annotated[
+        list[str] | None, typer.Option(help="Repeatable (default: every pinned corpus repo)")
+    ] = None,
+    bundle: Annotated[
+        list[str] | None, typer.Option(help="Repeatable (default: every bundle)")
+    ] = None,
+    agent: Annotated[
+        list[AgentKind] | None, typer.Option(help="Repeatable (default: every agent)")
+    ] = None,
+    tool_version: Annotated[
+        list[str] | None, typer.Option(help="Repeatable (default: installed)")
+    ] = None,
     cloud: Annotated[CloudMode | None, typer.Option(help="on, off or both (default: on)")] = None,
     reps: Annotated[int | None, typer.Option(help="Runs per cell (default: 1)")] = None,
-    model: Annotated[str | None, typer.Option(help="Model for every agent (default: from config)")] = None,
-    retries: Annotated[int | None, typer.Option(help="Scripted retries (default from config)")] = None,
+    model: Annotated[
+        str | None, typer.Option(help="Model for every agent (default: from config)")
+    ] = None,
+    retries: Annotated[
+        int | None, typer.Option(help="Scripted retries (default from config)")
+    ] = None,
     referee: Annotated[bool | None, typer.Option("--referee/--no-referee")] = None,
     max_attempts: Annotated[int, typer.Option(help="Tries per cell on harness failures")] = 2,
-    max_consecutive_failures: Annotated[int, typer.Option(help="Stop after this many harness failures in a row")] = 3,
-    allow_drift: Annotated[bool, typer.Option(help="Resume even if bundles or the tool version changed")] = False,
+    max_consecutive_failures: Annotated[
+        int, typer.Option(help="Stop after this many harness failures in a row")
+    ] = 3,
+    allow_drift: Annotated[
+        bool, typer.Option(help="Resume even if bundles or the tool version changed")
+    ] = False,
     dry_run: Annotated[bool, typer.Option(help="Print the cells and checks, run nothing")] = False,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Don't ask before creating the sweep")] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Don't ask before creating the sweep")
+    ] = False,
     config: ConfigOpt = None,
     pack: PackOpt = None,
 ) -> None:
@@ -445,28 +529,48 @@ def sweep_run(
     cfg, p = _ctx(config, pack)
     log = lambda m: typer.echo(m, err=True)  # noqa: E731
     sw = Sweep(cfg, p, name, log=log)
-    grid_flags = any(v is not None for v in (repo, bundle, agent, tool_version, cloud, reps, model,
-                                              retries, referee))
+    grid_flags = any(
+        v is not None
+        for v in (repo, bundle, agent, tool_version, cloud, reps, model, retries, referee)
+    )
     try:
         new = None
         if grid_flags or not sw.exists:
-            modes = {"on": [True], "off": [False], "both": [True, False]}[(cloud or CloudMode.on).value]
-            new = build_plan(cfg, p, name, repos=repo, bundles=bundle, agents=agent,
-                             tool_versions=tool_version, cloud=modes, reps=reps or 1, model=model,
-                             retries=retries, referee=True if referee is None else referee)
+            modes = {"on": [True], "off": [False], "both": [True, False]}[
+                (cloud or CloudMode.on).value
+            ]
+            new = build_plan(
+                cfg,
+                p,
+                name,
+                repos=repo,
+                bundles=bundle,
+                agents=agent,
+                tool_versions=tool_version,
+                cloud=modes,
+                reps=reps or 1,
+                model=model,
+                retries=retries,
+                referee=True if referee is None else referee,
+            )
         if sw.exists:
             plan = sw.load()
             if new and new.grid() != plan.grid():
-                raise SweepError(f"sweep {name} exists with a different grid; run "
-                                 f"`harness sweep run {name}` with no grid flags to resume it, "
-                                 "or pick a new name")
+                raise SweepError(
+                    f"sweep {name} exists with a different grid; run "
+                    f"`harness sweep run {name}` with no grid flags to resume it, "
+                    "or pick a new name"
+                )
             creating = False
         else:
             plan, creating = new, True
 
         done = sum(s.state != "pending" for s in sw.status(plan, max_attempts=max_attempts))
-        typer.echo(f"sweep {name}: {len(plan.cells)} cells, {done} finished, "
-                   f"{len(plan.cells) - done} to run", err=True)
+        typer.echo(
+            f"sweep {name}: {len(plan.cells)} cells, {done} finished, "
+            f"{len(plan.cells) - done} to run",
+            err=True,
+        )
         blocking = sw.preflight(plan)
         drift = [] if creating else sw.drift(plan)
         for prob in blocking + drift:
@@ -484,8 +588,12 @@ def sweep_run(
             if not yes:
                 typer.confirm(f"create sweep {name} and start {len(plan.cells)} runs?", abort=True)
             sw.save(plan)
-        final = sw.run(plan, max_attempts=max_attempts, allow_drift=allow_drift,
-                       max_consecutive_failures=max_consecutive_failures)
+        final = sw.run(
+            plan,
+            max_attempts=max_attempts,
+            allow_drift=allow_drift,
+            max_consecutive_failures=max_consecutive_failures,
+        )
     except SweepError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1) from None
@@ -531,8 +639,10 @@ def sweep_status(
         if last and last.status == "completed":
             b = find_bundle(cfg.runs, last.run_id)
             passed = run_passed(last, b.read_json("git_state.json") or {})
-        typer.echo(f"{s.cell.key:{width}}  {s.state:8}  runs={len(s.runs)}  "
-                   f"passed={'-' if passed is None else passed}  {last.run_id if last else ''}")
+        typer.echo(
+            f"{s.cell.key:{width}}  {s.state:8}  runs={len(s.runs)}  "
+            f"passed={'-' if passed is None else passed}  {last.run_id if last else ''}"
+        )
     for prob in sw.drift(plan):
         typer.echo(f"XX {prob}", err=True)
     _sweep_summary(statuses)

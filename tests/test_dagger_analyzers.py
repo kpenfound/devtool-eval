@@ -31,7 +31,11 @@ CUSTOM = '[modules.ci]\nsource = ".dagger/modules/ci"\n'
 
 
 def test_strategy_official_only(tmp_path, entry):
-    f = facts(ModuleStrategyAnalyzer({}).analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})))
+    f = facts(
+        ModuleStrategyAnalyzer({}).analyze(
+            make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})
+        )
+    )
     assert f["dagger.module_strategy"] == "official_only"
     assert f["dagger.expected_coverage_missing"] == ["dagger.io/python/ruff"]
     assert f["dagger.decorative_modules"] == []
@@ -39,9 +43,19 @@ def test_strategy_official_only(tmp_path, entry):
 
 
 def test_bonus_coverage(tmp_path, entry):
-    entry = entry.model_copy(update={"bonus_coverage": {"dagger.io/python/pytest": "dev only",
-                                                         "dagger.io/js/prettier": "docs site"}})
-    f = facts(ModuleStrategyAnalyzer({}).analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})))
+    entry = entry.model_copy(
+        update={
+            "bonus_coverage": {
+                "dagger.io/python/pytest": "dev only",
+                "dagger.io/js/prettier": "docs site",
+            }
+        }
+    )
+    f = facts(
+        ModuleStrategyAnalyzer({}).analyze(
+            make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})
+        )
+    )
     assert f["dagger.bonus_coverage_installed"] == ["dagger.io/python/pytest"]
     assert f["dagger.bonus_coverage"] == "1/2"
 
@@ -66,15 +80,26 @@ def test_skill_module_is_not_project_coverage(tmp_path, entry):
     assert f["dagger.decorative_modules"] == []
 
 
-SKILL_DIFF = ("diff --git a/.claude/skills/dagger/SKILL.md b/.claude/skills/dagger/SKILL.md\n"
-              "new file mode 100644\n--- /dev/null\n+++ b/.claude/skills/dagger/SKILL.md\n"
-              "@@ -0,0 +1 @@\n+# Dagger\n")
+SKILL_DIFF = (
+    "diff --git a/.claude/skills/dagger/SKILL.md b/.claude/skills/dagger/SKILL.md\n"
+    "new file mode 100644\n--- /dev/null\n+++ b/.claude/skills/dagger/SKILL.md\n"
+    "@@ -0,0 +1 @@\n+# Dagger\n"
+)
 
 
 def test_skill_installed_module_and_skill(tmp_path, entry):
     events = [shell("e1", "cat .claude/skills/dagger/SKILL.md"), shell("e2", "dagger check")]
-    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL + SKILL},
-                                                diff=SKILL_DIFF, events=events)))
+    f = facts(
+        SkillAnalyzer().analyze(
+            make_actx(
+                tmp_path,
+                entry,
+                files={"dagger.toml": OFFICIAL + SKILL},
+                diff=SKILL_DIFF,
+                events=events,
+            )
+        )
+    )
     assert f["dagger.skill_module_installed"] is True
     assert f["dagger.skill_installed"] is True
     assert f["dagger.skill_dirs"] == [".claude/skills"]
@@ -85,49 +110,72 @@ def test_skill_installed_module_and_skill(tmp_path, entry):
 
 
 def test_skill_module_without_generate(tmp_path, entry):
-    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL + SKILL})))
+    f = facts(
+        SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL + SKILL}))
+    )
     assert (f["dagger.skill_module_installed"], f["dagger.skill_installed"]) == (True, False)
     assert f["dagger.skill_adoption"] == "module_only"
 
 
 def test_skill_in_gitignored_dir_found_by_marker(tmp_path, entry):
-    files = {"dagger.toml": OFFICIAL + SKILL, ".agents/skills/dagger/.dagger-managed": "dagger.io/skill\n"}
+    files = {
+        "dagger.toml": OFFICIAL + SKILL,
+        ".agents/skills/dagger/.dagger-managed": "dagger.io/skill\n",
+    }
     f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files=files)))
     assert f["dagger.skill_installed"] is True and f["dagger.skill_dirs"] == [".agents/skills"]
     assert f["dagger.skill_in_agent_dir"] is False  # claude doesn't load .agents/skills
 
 
 def test_skill_without_module_and_nothing(tmp_path, entry):
-    f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL},
-                                                diff=SKILL_DIFF)))
+    f = facts(
+        SkillAnalyzer().analyze(
+            make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL}, diff=SKILL_DIFF)
+        )
+    )
     assert f["dagger.skill_adoption"] == "skill_only"
     f = facts(SkillAnalyzer().analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL})))
-    assert (f["dagger.skill_module_installed"], f["dagger.skill_installed"], f["dagger.skill_used"]) == (
-        False, False, False)
+    assert (
+        f["dagger.skill_module_installed"],
+        f["dagger.skill_installed"],
+        f["dagger.skill_used"],
+    ) == (False, False, False)
     assert f["dagger.skill_adoption"] == "not_installed"
 
 
 def test_combine_verdicts_reports_skill_adoption():
     from harness.models import Fact
 
-    fs = [Fact(key="dagger.module_strategy", value="official_only"),
-          Fact(key="dagger.skill_module_installed", value=True),
-          Fact(key="dagger.skill_installed", value=False),
-          Fact(key="dagger.skill_adoption", value="module_only")]
+    fs = [
+        Fact(key="dagger.module_strategy", value="official_only"),
+        Fact(key="dagger.skill_module_installed", value=True),
+        Fact(key="dagger.skill_installed", value=False),
+        Fact(key="dagger.skill_adoption", value="module_only"),
+    ]
     v = DaggerPack({}).combine_verdicts(fs, [])
-    assert (v["skill_module_installed"], v["skill_installed"], v["skill_adoption"]) == (True, False, "module_only")
+    assert (v["skill_module_installed"], v["skill_installed"], v["skill_adoption"]) == (
+        True,
+        False,
+        "module_only",
+    )
     assert DaggerPack({}).combine_verdicts([], [])["skill_adoption"] == "not_installed"
 
 
 def test_strategy_skip_reimplementation(tmp_path, entry):
     toml = OFFICIAL + '[modules.pytest.settings]\n"check.skip" = ["test"]\n' + CUSTOM
-    f = facts(ModuleStrategyAnalyzer({}).analyze(make_actx(tmp_path, entry, files={"dagger.toml": toml})))
+    f = facts(
+        ModuleStrategyAnalyzer({}).analyze(make_actx(tmp_path, entry, files={"dagger.toml": toml}))
+    )
     assert f["dagger.reimplementation_via_skip"] is True
     assert f["dagger.module_strategy"] == "official_custom_overlap"
 
 
 def test_strategy_nothing_working(tmp_path, entry):
-    f = facts(ModuleStrategyAnalyzer({}).analyze(make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL}, passed=False)))
+    f = facts(
+        ModuleStrategyAnalyzer({}).analyze(
+            make_actx(tmp_path, entry, files={"dagger.toml": OFFICIAL}, passed=False)
+        )
+    )
     assert f["dagger.module_strategy"] == "nothing_working"
 
 
@@ -139,7 +187,10 @@ def test_combine_verdicts_uses_referee_overlap():
     ev = [EvidenceRef(event="e00001")]
     assert pack.combine_verdicts(fs, [])["module_strategy_verdict"] == "good"
     v = pack.combine_verdicts(fs, [Score(criterion="overlap", score=2, rationale="", evidence=ev)])
-    assert v["module_strategy"] == "official_custom_overlap" and v["module_strategy_verdict"] == "partial"
+    assert (
+        v["module_strategy"] == "official_custom_overlap"
+        and v["module_strategy_verdict"] == "partial"
+    )
 
 
 DIFF = """diff --git a/.github/workflows/tests.yaml b/.github/workflows/tests.yaml
@@ -161,7 +212,10 @@ deleted file mode 100644
 
 def test_diff_by_file():
     files = diff_by_file(DIFF)
-    assert files[".github/workflows/tests.yaml"]["added"] == [(11, "    - run: dagger check"), (12, "    - run: pytest -k fast || true")]
+    assert files[".github/workflows/tests.yaml"]["added"] == [
+        (11, "    - run: dagger check"),
+        (12, "    - run: pytest -k fast || true"),
+    ]
     assert files["tests/test_cli.py"]["status"] == "deleted"
 
 
@@ -178,8 +232,10 @@ def test_ci_choice_and_fidelity(tmp_path, entry):
 
 
 def test_command_analyzer(tmp_path, entry):
-    events = [shell("e00001", "dagger instal x", 1, "Error: unknown command \"instal\""),
-              shell("e00002", "dagger check", 0)]
+    events = [
+        shell("e00001", "dagger instal x", 1, 'Error: unknown command "instal"'),
+        shell("e00002", "dagger check", 0),
+    ]
     f = facts(CommandAnalyzer().analyze(make_actx(tmp_path, entry, events=events)))
     assert f["dagger.command_errors"] == 1
     assert f["dagger.unknown_command_hints"] == ["dagger instal x"]
@@ -204,4 +260,7 @@ def test_custom_only_is_good_without_official_coverage():
     assert pack.combine_verdicts(fs, [])["module_strategy_verdict"] == "bad"
     fs.append(Fact(key="dagger.official_coverage_available", value=False))
     v = pack.combine_verdicts(fs, [])
-    assert (v["module_strategy_verdict"], v["module_strategy_source"]) == ("good", "no_official_coverage")
+    assert (v["module_strategy_verdict"], v["module_strategy_source"]) == (
+        "good",
+        "no_official_coverage",
+    )

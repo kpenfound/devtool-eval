@@ -160,7 +160,11 @@ def resolve_variant(bundle_dir: Path) -> ResolvedBundle:
     # Distinctive lines of any bundle content: if the agent echoes them, the referee would
     # learn the variant. Short or generic lines aren't worth redacting.
     for p in bundle_dir.rglob("*"):
-        if p.is_file() and p.suffix in (".md", ".txt", ".yaml", ".json") and p.name != "bundle.yaml":
+        if (
+            p.is_file()
+            and p.suffix in (".md", ".txt", ".yaml", ".json")
+            and p.name != "bundle.yaml"
+        ):
             for line in p.read_text(errors="replace").splitlines():
                 line = line.strip().lstrip("#-* ").strip()
                 if len(line) >= 40:

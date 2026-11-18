@@ -76,14 +76,31 @@ class Store:
         self.con.execute(
             "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
-                rid, meta.spec.pack, meta.spec.repo, meta.spec.bundle, meta.bundle_version,
-                meta.bundle_hash, meta.spec.agent.value, meta.spec.model,
-                meta.versions.get("tool") or meta.spec.tool_version, meta.spec.cloud,
-                meta.status.value, meta.slot, meta.repo_sha, meta.started_at, meta.finished_at,
-                facts.get("passed"), facts.get("verify.attempts"),
-                facts.get("retries_needed"), facts.get("cost_usd"), facts.get("duration_s"),
-                facts.get("turns"), facts.get("pushed"), json.dumps(meta.versions),
-                str(bundle.path), meta.spec.sweep,
+                rid,
+                meta.spec.pack,
+                meta.spec.repo,
+                meta.spec.bundle,
+                meta.bundle_version,
+                meta.bundle_hash,
+                meta.spec.agent.value,
+                meta.spec.model,
+                meta.versions.get("tool") or meta.spec.tool_version,
+                meta.spec.cloud,
+                meta.status.value,
+                meta.slot,
+                meta.repo_sha,
+                meta.started_at,
+                meta.finished_at,
+                facts.get("passed"),
+                facts.get("verify.attempts"),
+                facts.get("retries_needed"),
+                facts.get("cost_usd"),
+                facts.get("duration_s"),
+                facts.get("turns"),
+                facts.get("pushed"),
+                json.dumps(meta.versions),
+                str(bundle.path),
+                meta.spec.sweep,
             ],
         )
         for f in load_facts(bundle):
@@ -96,8 +113,15 @@ class Store:
             for s in card.scores:
                 self.con.execute(
                     "INSERT INTO scores VALUES (?,?,?,?,?,?,?,?)",
-                    [rid, *tag, card.referee_prompt_version, s.criterion, s.score, s.rationale,
-                     json.dumps([e.model_dump() for e in s.evidence])],
+                    [
+                        rid,
+                        *tag,
+                        card.referee_prompt_version,
+                        s.criterion,
+                        s.score,
+                        s.rationale,
+                        json.dumps([e.model_dump() for e in s.evidence]),
+                    ],
                 )
             sections = {
                 "ci_gaps": card.ci_gaps,
@@ -109,19 +133,35 @@ class Store:
                 for f in items:
                     self._finding(rid, tag, section, f.summary, f.detail, None, None, f.evidence)
             for fr in card.friction:
-                self._finding(rid, tag, "friction", fr.summary, "", fr.root_cause.value, None, fr.evidence)
+                self._finding(
+                    rid, tag, "friction", fr.summary, "", fr.root_cause.value, None, fr.evidence
+                )
             for c in card.claims:
                 self._finding(rid, tag, "claims", c.claim, "", None, c.verdict, c.evidence)
             for i in card.issue_candidates:
                 self.con.execute(
                     "INSERT INTO issues VALUES (?,?,?,?,?,?)",
-                    [rid, i.fingerprint, i.title, i.body, str(i.category),
-                     json.dumps([e.model_dump() for e in i.evidence])],
+                    [
+                        rid,
+                        i.fingerprint,
+                        i.title,
+                        i.body,
+                        str(i.category),
+                        json.dumps([e.model_dump() for e in i.evidence]),
+                    ],
                 )
         for v in bundle.read_json("docs_map.json") or []:
             self.con.execute(
                 "INSERT INTO docs VALUES (?,?,?,?,?,?,?)",
-                [rid, v["event"], v["url"], v["source"], v.get("doc_version"), v["kind"], v["outcome"]],
+                [
+                    rid,
+                    v["event"],
+                    v["url"],
+                    v["source"],
+                    v.get("doc_version"),
+                    v["kind"],
+                    v["outcome"],
+                ],
             )
         human = bundle.human_scores()
         if human:
@@ -135,8 +175,16 @@ class Store:
     def _finding(self, rid, tag, section, summary, detail, root_cause, verdict, evidence) -> None:
         self.con.execute(
             "INSERT INTO findings VALUES (?,?,?,?,?,?,?,?,?)",
-            [rid, *tag, section, summary, detail, root_cause, verdict,
-             json.dumps([e.model_dump() for e in evidence])],
+            [
+                rid,
+                *tag,
+                section,
+                summary,
+                detail,
+                root_cause,
+                verdict,
+                json.dumps([e.model_dump() for e in evidence]),
+            ],
         )
 
     def set_sitemap(self, source: str, urls: list[str]) -> None:

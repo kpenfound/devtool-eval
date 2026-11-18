@@ -18,7 +18,9 @@ def main() -> int:
     try:
         result = get_adapter(inv.agent).invoke(inv, out)
     except BaseException as e:  # noqa: BLE001 - everything is recorded, nothing is swallowed
-        out.write("harness_error", {"error": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()})
+        out.write(
+            "harness_error", {"error": f"{type(e).__name__}: {e}", "tb": traceback.format_exc()}
+        )
         session = inv.session_file.read_text().strip() if inv.session_file.exists() else None
         result = AgentTurnResult(
             phase=inv.phase,

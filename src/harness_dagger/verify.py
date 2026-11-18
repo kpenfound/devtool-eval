@@ -47,7 +47,9 @@ class DaggerVerifier:
         started = time.monotonic()
         listing = dagger(["check", "-l"], cwd=ctx.workdir, env=ctx.env, timeout=600)
         checks = parse_check_table(listing.stdout) if listing.returncode == 0 else []
-        p = dagger(["check", "--progress=plain"], cwd=ctx.workdir, env=ctx.env, timeout=self.timeout)
+        p = dagger(
+            ["check", "--progress=plain"], cwd=ctx.workdir, env=ctx.env, timeout=self.timeout
+        )
         log_name = "verify.log" if attempt == 0 else f"verify.{attempt}.log"
         log = (
             f"$ dagger check -l  (exit {listing.returncode})\n{listing.stdout}\n{listing.stderr}\n"
@@ -92,12 +94,15 @@ def error_excerpt(text: str) -> str:
     while i < len(lines):
         if ERROR_START.search(lines[i]):
             j = i + 1
-            while j < len(lines) and (lines[j].startswith((" ", "-", "\t")) and not re.match(r"^\d+\s+:", lines[j])):
+            while j < len(lines) and (
+                lines[j].startswith((" ", "-", "\t")) and not re.match(r"^\d+\s+:", lines[j])
+            ):
                 j += 1
             # Nested spans repeat the same error output; keep each indented line once.
             seen = set(blocks)
             blocks.extend(
-                line for line in lines[i : min(j, i + 40)]
+                line
+                for line in lines[i : min(j, i + 40)]
                 if not (line.startswith((" ", "\t")) and line in seen)
             )
             i = j

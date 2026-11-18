@@ -113,7 +113,8 @@ def run_invocation(inv: AgentInvocation) -> AgentTurnResult:
     run_dir = Path(inv.run_dir)
     tag = f"{inv.phase.value}-{inv.attempt}"
     # The worker's argv is visible to the agent (ps), and the run dir's name includes the
-    # variant, so the spec and result files live next to the run's neutral HOME instead.
+    # variant, so the spec and result files live next to the run's neutral HOME instead, in
+    # <state>/homes/<random>/, which teardown deletes along with the HOME.
     scratch = Path(inv.home).parent
     spec_path = scratch / f"invocation-{tag}.json"
     result_path = scratch / f"result-{tag}.json"
@@ -124,7 +125,14 @@ def run_invocation(inv: AgentInvocation) -> AgentTurnResult:
         # -P: never import from the repo checkout we're running in. No PYTHONPATH either,
         # since the agent's own commands inherit this environment.
         proc = subprocess.Popen(
-            [inv.python or sys.executable, "-P", "-m", "harness.agents.worker", str(spec_path), str(result_path)],
+            [
+                inv.python or sys.executable,
+                "-P",
+                "-m",
+                "harness.agents.worker",
+                str(spec_path),
+                str(result_path),
+            ],
             cwd=inv.workdir,
             env=inv.env,
             stdout=stderr,

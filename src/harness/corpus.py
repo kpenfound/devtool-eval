@@ -23,7 +23,9 @@ from harness.models import CIJob, CorpusEntry, OutOfScopeReason, PartialOutOfSco
 from harness.pack import ToolPack
 from harness.slots import SlotPool
 
-CD_HINT = re.compile(r"\b(publish|release|deploy|pypi|npm publish|docker push|goreleaser|upload)\b", re.I)
+CD_HINT = re.compile(
+    r"\b(publish|release|deploy|pypi|npm publish|docker push|goreleaser|upload)\b", re.I
+)
 NON_LINUX = re.compile(r"\b(windows|macos|mac-os|osx)\b", re.I)
 # Publishing commands in a job body; only trusted for workflows that don't also run on PRs,
 # since PR-triggered builds often upload artifacts too.
@@ -36,8 +38,14 @@ BOT_HINT = re.compile(
 # one triggered only by issue/discussion activity is a bot whatever its name.
 CODE_EVENTS = {"push", "pull_request", "merge_group", "workflow_call"}
 REPO_EVENTS = {
-    "issues", "issue_comment", "discussion", "discussion_comment", "label", "milestone",
-    "pull_request_review", "pull_request_review_comment",
+    "issues",
+    "issue_comment",
+    "discussion",
+    "discussion_comment",
+    "label",
+    "milestone",
+    "pull_request_review",
+    "pull_request_review_comment",
 }
 AUTO_NOTE = "auto-proposed: review"
 
@@ -87,20 +95,26 @@ def inventory_ci(repo: Path) -> list[CIJob]:
                 ci.out_of_scope = OutOfScopeReason.non_linux
             elif NON_LINUX.search(matrix):
                 for m in sorted({m.lower() for m in NON_LINUX.findall(matrix)}):
-                    ci.partial_out_of_scope.append(PartialOutOfScope(match=m, reason=OutOfScopeReason.non_linux))
+                    ci.partial_out_of_scope.append(
+                        PartialOutOfScope(match=m, reason=OutOfScopeReason.non_linux)
+                    )
             if ci.out_of_scope or ci.partial_out_of_scope:
                 ci.note = AUTO_NOTE
             jobs.append(ci)
     for other in (".gitlab-ci.yml", "Jenkinsfile", ".circleci/config.yml", "azure-pipelines.yml"):
         if (repo / other).exists():
-            jobs.append(CIJob(workflow=other, job="*", summary="non-GitHub CI config; inventory by hand"))
+            jobs.append(
+                CIJob(workflow=other, job="*", summary="non-GitHub CI config; inventory by hand")
+            )
     return jobs
 
 
 def _hand_made(old: CIJob, new: CIJob) -> bool:
     if old.note == AUTO_NOTE:
         return False
-    return bool(old.out_of_scope or old.partial_out_of_scope or old.note) or old.summary != new.summary
+    return (
+        bool(old.out_of_scope or old.partial_out_of_scope or old.note) or old.summary != new.summary
+    )
 
 
 def merge_ci(existing: list[CIJob], found: list[CIJob]) -> list[CIJob]:
@@ -116,8 +130,15 @@ def merge_ci(existing: list[CIJob], found: list[CIJob]) -> list[CIJob]:
 # Files that hold CI commands, and the task runners CI may call into. Tools reachable only
 # outside CI (a package.json script CI never runs, a hand-run formatter) are bonus coverage.
 CI_GLOBS = (
-    ".github/**/*", ".gitlab-ci.yml", ".circleci/config.yml", "Jenkinsfile", "azure-pipelines.yml",
-    "Makefile", "noxfile.py", ".ci/*", "ci/*",
+    ".github/**/*",
+    ".gitlab-ci.yml",
+    ".circleci/config.yml",
+    "Jenkinsfile",
+    "azure-pipelines.yml",
+    "Makefile",
+    "noxfile.py",
+    ".ci/*",
+    "ci/*",
 )
 RUNNERS = {
     "pre-commit": (".pre-commit-config.yaml",),
@@ -130,16 +151,26 @@ SKIP_DIRS = {".git", "node_modules", "vendor", ".venv"}
 
 
 def _files(repo: Path, name: str) -> list[Path]:
-    return sorted(f for f in repo.rglob(name) if f.is_file() and not SKIP_DIRS & set(f.relative_to(repo).parts))
+    return sorted(
+        f
+        for f in repo.rglob(name)
+        if f.is_file() and not SKIP_DIRS & set(f.relative_to(repo).parts)
+    )
 
 
 def ci_text(repo: Path) -> str:
-    parts = [f.read_text(errors="replace") for g in CI_GLOBS for f in sorted(repo.glob(g)) if f.is_file()]
+    parts = [
+        f.read_text(errors="replace") for g in CI_GLOBS for f in sorted(repo.glob(g)) if f.is_file()
+    ]
     text = "\n".join(parts)
     pending = dict(RUNNERS)
-    while hit := [r for r in pending if re.search(rf"\b{re.escape(r)}\b", text)]:  # runners call runners
+    while hit := [
+        r for r in pending if re.search(rf"\b{re.escape(r)}\b", text)
+    ]:  # runners call runners
         for runner in hit:
-            parts += [f.read_text(errors="replace") for n in pending.pop(runner) for f in _files(repo, n)]
+            parts += [
+                f.read_text(errors="replace") for n in pending.pop(runner) for f in _files(repo, n)
+            ]
         text = "\n".join(parts)
     if re.search(r"\btox\b", text) and (repo / "pyproject.toml").exists():
         tox = tomllib.loads((repo / "pyproject.toml").read_text()).get("tool", {}).get("tox")

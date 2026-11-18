@@ -6,12 +6,32 @@ def test_harness_exposure():
     def ev(id, **kw):
         return Event(id=id, raw_seq=1, agent="c", phase="task", **kw)
 
-    clean = [ev("e1", kind=EventKind.shell, command="dagger module recommend", text="dagger.io/python/pytest")]
+    clean = [
+        ev(
+            "e1",
+            kind=EventKind.shell,
+            command="dagger module recommend",
+            text="dagger.io/python/pytest",
+        )
+    ]
     assert harness_exposure(clean).value is False
     events = clean + [
-        ev("e2", kind=EventKind.web_search, query="dagger flask ci", text="github.com/kpenfound/devtool-eval - ..."),
-        ev("e3", kind=EventKind.shell, command="git clone https://github.com/kpenfound/devtool-eval"),
-        ev("e4", kind=EventKind.mcp_call, input={"url": "https://github.com/kpenfound/DevTool_Eval/blob/main/rubric.yaml"}),
+        ev(
+            "e2",
+            kind=EventKind.web_search,
+            query="dagger flask ci",
+            text="github.com/kpenfound/devtool-eval - ...",
+        ),
+        ev(
+            "e3",
+            kind=EventKind.shell,
+            command="git clone https://github.com/kpenfound/devtool-eval",
+        ),
+        ev(
+            "e4",
+            kind=EventKind.mcp_call,
+            input={"url": "https://github.com/kpenfound/DevTool_Eval/blob/main/rubric.yaml"},
+        ),
     ]
     fact = harness_exposure(events)
     assert fact.value is True
@@ -25,4 +45,6 @@ def test_delivery_needs_the_verified_tree_pushed():
     assert delivery(["abc"], clean) == (True, "")
     assert delivery([], clean)[0] is False  # verified locally, never pushed
     assert delivery(["old"], clean)[0] is False  # kept working after the last push
-    assert delivery(["abc"], {"head": "abc", "status": "?? .dagger/"})[0] is False  # forgot to commit
+    assert (
+        delivery(["abc"], {"head": "abc", "status": "?? .dagger/"})[0] is False
+    )  # forgot to commit

@@ -38,7 +38,9 @@ class CloudChecks:
         if token_env and os.environ.get(token_env):
             env["DAGGER_CLOUD_TOKEN"] = os.environ[token_env]
         if ctx.config.cloud.config_dir:
-            env["XDG_CONFIG_HOME"] = str(Path(os.path.expanduser(ctx.config.cloud.config_dir)).parent)
+            env["XDG_CONFIG_HOME"] = str(
+                Path(os.path.expanduser(ctx.config.cloud.config_dir)).parent
+            )
         return env
 
     def _where(self, ctx: RunContext) -> tuple[Path | None, list[str]]:
@@ -72,11 +74,18 @@ class CloudChecks:
             for sha in shas:
                 p = dagger(
                     ["cloud", "checks", "list", sha, "--watch", f"--interval={self.interval}", *w],
-                    cwd=cwd, env=env, timeout=self.wait_s,
+                    cwd=cwd,
+                    env=env,
+                    timeout=self.wait_s,
                 )
-                details["shas"][sha] = {"exit": p.returncode, "output": (p.stdout + p.stderr)[-8000:]}
+                details["shas"][sha] = {
+                    "exit": p.returncode,
+                    "output": (p.stdout + p.stderr)[-8000:],
+                }
                 green_all = green_all and p.returncode == 0
-        return IntegrationResult(name=self.name, enabled=enabled, green=green_all, shas=shas, details=details)
+        return IntegrationResult(
+            name=self.name, enabled=enabled, green=green_all, shas=shas, details=details
+        )
 
     def teardown(self, ctx: RunContext) -> None:
         if not ctx.slot_repo:

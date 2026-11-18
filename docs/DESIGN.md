@@ -48,7 +48,7 @@ A run is one scenario (repo + bundle + agent), triggered manually: `harness run 
 5. **Retry (optional):** a scripted simulated user feeds back the real error, a fixed number of times. Every nudge is recorded.
 6. **Feedback turn:** resume the session and ask for a structured report on the tool. Asked only after the task, so it can't bias the work.
 7. **Integration check:** the pack verifies external integrations by commit SHA (for Dagger, Cloud Checks green).
-8. **Store and reset:** write the run bundle, then reset the slot. A crashed run is cleaned up on the next invocation.
+8. **Store and reset:** write the run bundle, then reset the slot. Teardown copies the agent's session records out of the fake HOME into the bundle (`agent-home/`) and deletes `<state_dir>/homes/<random>/`. A crashed run is cleaned up on the next invocation, which also reclaims any home no live run owns.
 
 **Isolation rules**
 
@@ -57,7 +57,7 @@ A run is one scenario (repo + bundle + agent), triggered manually: `harness run 
 - Base environment (same for every run): tool installed, `dagger login` state, slot-scoped GitHub token.
 - SDK runs must match real CLI behavior: Claude Code's preset system prompt, same tools and permission mode. Verify once by diffing a CLI and SDK run.
 
-**Run bundle (on disk):** `run.json` (metadata and versions), raw transcript, `diff.patch`, verify log, feedback report, scorecard.
+**Run bundle (on disk):** `run.json` (metadata and versions), raw transcript, `diff.patch`, verify log, feedback report, scorecard, and the agent's own session records (`agent-home/`).
 
 ## Dimensions and corpus
 

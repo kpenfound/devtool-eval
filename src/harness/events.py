@@ -376,7 +376,9 @@ def normalize_codex(raw: Iterable[dict[str, Any]]) -> list[Event]:
                     kind=EventKind.mcp_call,
                     tool=f"mcp__{item.get('server')}__{item.get('tool')}",
                     call_id=item.get("id"),
-                    input=item.get("arguments") if isinstance(item.get("arguments"), dict) else None,
+                    input=item.get("arguments")
+                    if isinstance(item.get("arguments"), dict)
+                    else None,
                     text=_clip(json.dumps(result) if result is not None else None),
                     is_error=item.get("error") is not None,
                 )
@@ -384,9 +386,7 @@ def normalize_codex(raw: Iterable[dict[str, Any]]) -> list[Event]:
         elif itype == "userMessage":
             continue  # our own prompt, already recorded as harness_prompt
         else:
-            events.append(
-                Event(**base, kind=EventKind.tool_call, tool=itype, data={"item": item})
-            )
+            events.append(Event(**base, kind=EventKind.tool_call, tool=itype, data={"item": item}))
     return _number(events)
 
 

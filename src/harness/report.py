@@ -85,7 +85,9 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
     if exposed:
         parts.append(
             "\n**Harness exposure:** these runs' transcripts mention the harness by name, so their "
-            "results may be contaminated (see the `harness_exposure` fact): " + ", ".join(exposed) + "\n"
+            "results may be contaminated (see the `harness_exposure` fact): "
+            + ", ".join(exposed)
+            + "\n"
         )
 
     unmeasured = defaultdict(list)
@@ -94,7 +96,9 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
             if key.startswith("integration.") and key.endswith(".error"):
                 unmeasured[f"{key.removesuffix('.error')}: {value}"].append(r["run_id"])
     if unmeasured:
-        parts.append("\n**Integration not measured** (blank results below are not agent outcomes):\n")
+        parts.append(
+            "\n**Integration not measured** (blank results below are not agent outcomes):\n"
+        )
         for reason, run_ids in unmeasured.items():
             parts.append(f"- {reason} ({len(run_ids)} runs): {', '.join(run_ids)}")
         parts.append("")
@@ -143,7 +147,11 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
         ids,
     )
     if rows:
-        parts.append("\n" + "\n".join(f"- **{r['root_cause']}** ({r['run_id']}): {r['summary']}" for r in rows) + "\n")
+        parts.append(
+            "\n"
+            + "\n".join(f"- **{r['root_cause']}** ({r['run_id']}): {r['summary']}" for r in rows)
+            + "\n"
+        )
 
     parts.append("\n## Hallucinated APIs and legacy confusion\n")
     rows = store.query(
@@ -156,7 +164,8 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
 
     parts.append("\n## CI gaps\n")
     rows = store.query(
-        f"SELECT run_id, summary FROM findings WHERE section = 'ci_gaps' AND run_id IN ({idlist})", ids
+        f"SELECT run_id, summary FROM findings WHERE section = 'ci_gaps' AND run_id IN ({idlist})",
+        ids,
     )
     parts.append(_table(rows, ["run_id", "summary"]))
 
@@ -181,7 +190,8 @@ def build(store: Store, *, report_facts: list[str], **filters: str | None) -> st
 
 def _issues(store: Store, ids: list[str], idlist: str) -> str:
     rows = store.query(
-        f"SELECT fingerprint, title, body, category, run_id FROM issues WHERE run_id IN ({idlist})", ids
+        f"SELECT fingerprint, title, body, category, run_id FROM issues WHERE run_id IN ({idlist})",
+        ids,
     )
     groups: list[dict] = []
     for r in rows:
@@ -198,7 +208,9 @@ def _issues(store: Store, ids: list[str], idlist: str) -> str:
     groups.sort(key=lambda g: -len(g["runs"]))
     out = []
     for g in groups:
-        out.append(f"### {g['title']}\n\n_{g['category']} · {len(g['runs'])} run(s): {', '.join(sorted(g['runs']))}_\n\n{g['body']}\n")
+        out.append(
+            f"### {g['title']}\n\n_{g['category']} · {len(g['runs'])} run(s): {', '.join(sorted(g['runs']))}_\n\n{g['body']}\n"
+        )
     return "\n".join(out)
 
 
@@ -211,7 +223,12 @@ def _docs(store: Store, ids: list[str], idlist: str) -> str:
             GROUP BY ALL ORDER BY visits DESC LIMIT 40""",
         ids,
     )
-    out = ["### Most-used pages\n", _table(top, ["url", "source", "doc_version", "visits", "runs", "error_after", "success_after"])]
+    out = [
+        "### Most-used pages\n",
+        _table(
+            top, ["url", "source", "doc_version", "visits", "runs", "error_after", "success_after"]
+        ),
+    ]
     versions = store.query(
         f"""SELECT source, coalesce(doc_version, '?') AS doc_version, count(*) AS visits
             FROM docs WHERE run_id IN ({idlist}) GROUP BY ALL ORDER BY ALL""",
@@ -245,4 +262,6 @@ def calibration_table(store: Store, ids: list[str] | None = None) -> str:
             GROUP BY ALL ORDER BY ALL""",
         ids or [],
     )
-    return _table(rows, ["rubric_version", "referee_model", "criterion", "n", "mae", "exact", "within_1"])
+    return _table(
+        rows, ["rubric_version", "referee_model", "criterion", "n", "mae", "exact", "within_1"]
+    )

@@ -37,7 +37,8 @@ GitHub org and Dagger Cloud are set up.
    is captured before this turn.
 7. **Integration check:** Cloud Checks state and results, by pushed commit SHA.
 8. **Store and reset:** normalizes events, runs the analyzers, builds the docs map, runs
-   the referee, ingests into DuckDB, and tears down the slot (in a `finally`).
+   the referee, ingests into DuckDB, and tears down the slot (in a `finally`). Teardown also
+   copies the agent's session records into the run bundle and deletes the run's fake `HOME`.
 
 ## Run bundle
 
@@ -56,6 +57,13 @@ GitHub org and Dagger Cloud are set up.
 | `docs_map.json` | docs pages visited, doc version, what happened next |
 | `scorecard.json` | referee scores and findings, version-tagged |
 | `human-scores.yaml` | optional, written by a person for calibration |
+| `agent-home/` | the agent's own session records, copied out of the fake `HOME` at teardown with the same relative paths: `.claude/projects/` (Claude transcripts), `.codex/sessions/` and `.codex/archived_sessions/` (Codex rollouts). Nothing else from the `HOME` is kept, and never credentials (`auth.json`, Dagger Cloud config) |
+
+Fake `HOME`s live outside the bundle, at `<state_dir>/homes/<random>/` (agent-visible paths
+mustn't name the run). They are removed when a run ends, whatever its outcome, and
+`harness slots recover` (run at the start of every `harness run` and sweep cell) removes the
+home of a crashed run, keeping its session records in `agent-home/` first, along with any
+other entry under `homes/` that no running harness owns.
 
 ## Commands
 

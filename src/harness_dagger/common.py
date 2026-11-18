@@ -34,8 +34,9 @@ def dagger(
         )
     except subprocess.TimeoutExpired as e:
         out = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
-        return subprocess.CompletedProcess(["dagger", *args], 124, out, f"timed out after {timeout}s")
+        return subprocess.CompletedProcess(
+            ["dagger", *args], 124, out, f"timed out after {timeout}s"
+        )
     except FileNotFoundError:
         return subprocess.CompletedProcess(["dagger", *args], 127, "", "dagger: command not found")
     return subprocess.CompletedProcess(p.args, p.returncode, clean(p.stdout), clean(p.stderr))
-

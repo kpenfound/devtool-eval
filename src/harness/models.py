@@ -191,9 +191,13 @@ class RunMeta(BaseModel):
     bundle_version: str | None = None
     bundle_hash: str | None = None
     budget: Budget = Field(default_factory=Budget)
-    versions: dict[str, str] = Field(default_factory=dict)  # harness, pack, tool, agent cli/sdk, ...
+    versions: dict[str, str] = Field(
+        default_factory=dict
+    )  # harness, pack, tool, agent cli/sdk, ...
     session_id: str | None = None
-    home: str | None = None  # the run's fake HOME (outside the bundle, see isolation.make_home)
+    home: str | None = (
+        None  # the run's fake HOME (outside the bundle; removed at teardown, see harness.homes)
+    )
     turns: list[AgentTurnResult] = Field(default_factory=list)
     verifies: list[VerifyResult] = Field(default_factory=list)
     nudges: list[Nudge] = Field(default_factory=list)

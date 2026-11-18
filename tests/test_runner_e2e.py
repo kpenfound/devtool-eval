@@ -20,11 +20,22 @@ from harness_dagger.pack import DaggerPack
 
 
 def git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
-                          env={"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
-                               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                               "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin"}).stdout.strip()
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "PATH": "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin",
+        },
+    ).stdout.strip()
 
 
 @pytest.fixture
@@ -34,11 +45,17 @@ def upstream(tmp_path: Path) -> CorpusEntry:
     git(repo, "init", "-q", "-b", "main")
     (repo / "pyproject.toml").write_text('[project]\nname = "x"\n')
     (repo / ".github/workflows").mkdir(parents=True)
-    (repo / ".github/workflows/tests.yaml").write_text("jobs:\n  tests:\n    steps:\n      - run: pytest\n")
+    (repo / ".github/workflows/tests.yaml").write_text(
+        "jobs:\n  tests:\n    steps:\n      - run: pytest\n"
+    )
     git(repo, "add", "-A")
     git(repo, "commit", "-qm", "init")
-    return CorpusEntry(name="toy", url=str(repo), sha=git(repo, "rev-parse", "HEAD"),
-                       expected_coverage=["dagger.io/python/pytest"])
+    return CorpusEntry(
+        name="toy",
+        url=str(repo),
+        sha=git(repo, "rev-parse", "HEAD"),
+        expected_coverage=["dagger.io/python/pytest"],
+    )
 
 
 class StubEnv:
@@ -59,8 +76,13 @@ class StubVerifier:
         toml = ctx.workdir / "dagger.toml"
         ok = toml.exists() and "[modules." in toml.read_text()
         (ctx.run_dir / "verify.log").write_text("ok" if ok else "Error: no checks")
-        return VerifyResult(passed=ok, exit_code=0 if ok else 1, checks=["pytest:test"] if ok else [],
-                            error_excerpt="" if ok else "Error: no checks", attempt=attempt)
+        return VerifyResult(
+            passed=ok,
+            exit_code=0 if ok else 1,
+            checks=["pytest:test"] if ok else [],
+            error_excerpt="" if ok else "Error: no checks",
+            attempt=attempt,
+        )
 
 
 def fake_invocation(inv: AgentInvocation) -> AgentTurnResult:
@@ -76,25 +98,74 @@ def fake_invocation(inv: AgentInvocation) -> AgentTurnResult:
     elif inv.phase == "retry":
         (wd / "dagger.toml").write_text('[modules.pytest]\nsource = "dagger.io/python/pytest"\n')
         cmd, code = "dagger module install dagger.io/python/pytest", 0
-        env = {**inv.env, "GIT_AUTHOR_NAME": "a", "GIT_AUTHOR_EMAIL": "a@a",
-               "GIT_COMMITTER_NAME": "a", "GIT_COMMITTER_EMAIL": "a@a"}
-        for args in (["switch", "-qc", "adopt"], ["add", "-A"], ["commit", "-qm", "dagger"],
-                     ["push", "-q", "origin", "adopt"]):
+        env = {
+            **inv.env,
+            "GIT_AUTHOR_NAME": "a",
+            "GIT_AUTHOR_EMAIL": "a@a",
+            "GIT_COMMITTER_NAME": "a",
+            "GIT_COMMITTER_EMAIL": "a@a",
+        }
+        for args in (
+            ["switch", "-qc", "adopt"],
+            ["add", "-A"],
+            ["commit", "-qm", "dagger"],
+            ["push", "-q", "origin", "adopt"],
+        ):
             subprocess.run(["git", *args], cwd=wd, env=env, check=True)
     else:
         report = {"summary": "fine", "difficulty": 2, "what_i_set_up": ["pytest module"]}
-        out.write("ResultMessage", {"subtype": "success", "num_turns": 1, "result": json.dumps(report),
-                                    "session_id": "s1"})
+        out.write(
+            "ResultMessage",
+            {
+                "subtype": "success",
+                "num_turns": 1,
+                "result": json.dumps(report),
+                "session_id": "s1",
+            },
+        )
         out.close()
-        return AgentTurnResult(phase=inv.phase, prompt=inv.prompt, session_id="s1",
-                               final_text=json.dumps(report), turns=1)
-    out.write("AssistantMessage", {"content": [
-        {"_type": "ToolUseBlock", "id": f"t{inv.attempt}", "name": "Bash", "input": {"command": cmd}}]})
-    out.write("UserMessage", {"content": [
-        {"_type": "ToolResultBlock", "tool_use_id": f"t{inv.attempt}", "content": "ok", "is_error": code != 0}]})
+        return AgentTurnResult(
+            phase=inv.phase,
+            prompt=inv.prompt,
+            session_id="s1",
+            final_text=json.dumps(report),
+            turns=1,
+        )
+    out.write(
+        "AssistantMessage",
+        {
+            "content": [
+                {
+                    "_type": "ToolUseBlock",
+                    "id": f"t{inv.attempt}",
+                    "name": "Bash",
+                    "input": {"command": cmd},
+                }
+            ]
+        },
+    )
+    out.write(
+        "UserMessage",
+        {
+            "content": [
+                {
+                    "_type": "ToolResultBlock",
+                    "tool_use_id": f"t{inv.attempt}",
+                    "content": "ok",
+                    "is_error": code != 0,
+                }
+            ]
+        },
+    )
     out.close()
-    return AgentTurnResult(phase=inv.phase, attempt=inv.attempt, prompt=inv.prompt, session_id="s1",
-                           turns=2, cost_usd=0.1)
+    return AgentTurnResult(
+        phase=inv.phase,
+        attempt=inv.attempt,
+        prompt=inv.prompt,
+        session_id="s1",
+        turns=2,
+        cost_usd=0.1,
+    )
 
 
 def test_full_loop(tmp_path, upstream, monkeypatch):
@@ -108,12 +179,28 @@ def test_full_loop(tmp_path, upstream, monkeypatch):
 
     def fake_referee(config, system, prompt, schema):
         assert "baseline" not in prompt.split("# Transcript")[1]  # blinded
-        return json.dumps({
-            "scores": [{"criterion": "idiomatic", "score": 4, "rationale": "dagger.toml",
-                        "evidence": [{"path": "dagger.toml", "line": 1}]},
-                       {"criterion": "fidelity", "score": 2, "rationale": "no evidence", "evidence": []}],
-            "ci_gaps": [], "friction": [], "claims": [], "issue_candidates": [],
-        })
+        return json.dumps(
+            {
+                "scores": [
+                    {
+                        "criterion": "idiomatic",
+                        "score": 4,
+                        "rationale": "dagger.toml",
+                        "evidence": [{"path": "dagger.toml", "line": 1}],
+                    },
+                    {
+                        "criterion": "fidelity",
+                        "score": 2,
+                        "rationale": "no evidence",
+                        "evidence": [],
+                    },
+                ],
+                "ci_gaps": [],
+                "friction": [],
+                "claims": [],
+                "issue_candidates": [],
+            }
+        )
 
     monkeypatch.setattr(backends, "complete", fake_referee)
 
@@ -138,12 +225,18 @@ def test_full_loop(tmp_path, upstream, monkeypatch):
     assert card.rejected and card.verdicts["module_strategy_verdict"] == "good"
     assert not list((tmp_path / "state" / "slots").glob("*.lease.json"))  # lease released
     with Store(config.db) as store:
-        assert store.query("SELECT passed, retries_needed FROM runs") == [{"passed": True, "retries_needed": 1}]
+        assert store.query("SELECT passed, retries_needed FROM runs") == [
+            {"passed": True, "retries_needed": 1}
+        ]
     assert len(list_bundles(config.runs)) == 1
 
 
-@pytest.mark.parametrize(("agent", "skills_dir"), [("claude", ".claude/skills"), ("codex", ".agents/skills")])
-def test_skills_dir_bundle_creates_project_skills_dir(tmp_path, upstream, monkeypatch, agent, skills_dir):
+@pytest.mark.parametrize(
+    ("agent", "skills_dir"), [("claude", ".claude/skills"), ("codex", ".agents/skills")]
+)
+def test_skills_dir_bundle_creates_project_skills_dir(
+    tmp_path, upstream, monkeypatch, agent, skills_dir
+):
     config = HarnessConfig(state_dir=str(tmp_path / "state"), retries=0)
     config.agents.codex.auth = "api_key"
     pack = DaggerPack({})
@@ -159,8 +252,13 @@ def test_skills_dir_bundle_creates_project_skills_dir(tmp_path, upstream, monkey
     monkeypatch.setattr(runner_mod, "run_invocation", spy)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "test-token")
     monkeypatch.setenv(config.agents.codex.api_key_env, "test-key")
-    monkeypatch.setattr(backends, "complete", lambda *a: json.dumps({
-        "scores": [], "ci_gaps": [], "friction": [], "claims": [], "issue_candidates": []}))
+    monkeypatch.setattr(
+        backends,
+        "complete",
+        lambda *a: json.dumps(
+            {"scores": [], "ci_gaps": [], "friction": [], "claims": [], "issue_candidates": []}
+        ),
+    )
     runner = runner_mod.Runner(config, pack, log=lambda m: None)
     bundle = runner.run(RunSpec(repo="toy", bundle="skills-dir", agent=agent, cloud=False))
     assert bundle.meta().status == "completed", bundle.meta().error
